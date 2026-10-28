@@ -10,6 +10,8 @@ Windows 服务端 + Android App · 纯局域网直连 · 数据不出内网
 
 [下载最新版](../../releases/latest) · [快速开始](#-快速开始) · [故障排查](#-故障排查)
 
+**简体中文** · [English](README_EN.md)
+
 </div>
 
 ---

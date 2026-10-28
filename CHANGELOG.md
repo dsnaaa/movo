@@ -894,3 +894,11 @@ GitHub 仓库从 `dsnaaa/mouse` 改名为 `dsnaaa/movo`，并按「清空重来�
 - **Release v2.0.0** 两个资产：
   `MovoServer.exe`（46.6MB，单文件免安装）+ `Movo-v2.0.0.apk`
   （3.7MB，`com.dsnaaa.movo` versionCode 25），发布说明含 SHA256 校验值和三步上手流程。
+
+## 49. README 中英双语（2026-10-28）
+
+- 新增 `README_EN.md`，与 `README.md` 同结构逐节对译（截图、目录树、表格、折叠块一一对应），
+  锚点按各自语言重算，页内的「快速开始 / 语音识别 / 故障排查」跳转在两种语言下都能用。
+- 两份文件头部各加一行语言切换：`**简体中文** · [English](README_EN.md)` /
+  `[简体中文](README.md) · **English**`，当前语言加粗不可点。
+- 截图与图标共用同一套 `img/` `static/` 资源，不重复占仓库体积。
