@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Movo | 语音输入</title>
+    <link rel="icon" type="image/png" href="/static/touchpad.png">
+    <meta name="theme-color" content="#0a0b0e" id="theme-color">
+    <script>
+        (function () {
+            var t = localStorage.getItem('movo_theme');
+            if (t !== 'light' && t !== 'dark') {
+                try { t = window.MovoNative && MovoNative.getPref && MovoNative.getPref('ui_theme'); } catch (e) { }
+            }
+            if (t !== 'light' && t !== 'dark') {
+                t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+            }
+            document.documentElement.setAttribute('data-theme', t);
+            var m = document.getElementById('theme-color');
+            if (m) m.setAttribute('content', t === 'light' ? '#f6f7fa' : '#0a0b0e');
+        })();
+    </script>
+    <style>
+        :root {
+            --bg: #0a0b0e;
+            --card: #14161b;
+            --field: #0f1116;
+            --ink: #e8eaf1;
+            --ink-2: #9aa2b4;
+            --muted: #6d7484;
+            --accent: #0A84FF;
+            --accent-weak: #12263d;
+            --line: #23262e;
+            --ok: #30d158;
+            --warn: #ff9f0a;
+            --err: #ff453a;
+        }
+
+        html[data-theme="light"] {
+            --bg: #f6f7fa;
+            --card: #ffffff;
+            --field: #eef0f5;
+            --ink: #12141a;
+            --ink-2: #5b6273;
+            --muted: #8a90a0;
+            --accent: #0b6cf0;
+            --accent-weak: #dbe9ff;
+            --line: #e2e5ec;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        html, body {
+            margin: 0; padding: 0; height: 100%;
+            background: var(--bg); color: var(--ink);
+            font-family: -apple-system, "PingFang SC", "Microsoft YaHei UI", sans-serif;
+            overscroll-behavior: none;
+        }
+
+        .wrap {
+            height: 100vh; height: 100dvh;
+            display: flex; flex-direction: column;
+            padding: max(10px, var(--satop, env(safe-area-inset-top))) 14px max(14px, var(--sabottom, env(safe-area-inset-bottom)));
+            gap: 12px;
+        }
+
+        header { display: flex; align-items: center; gap: 10px; flex: none; }
+
+        .back {
+            color: var(--ink-2); text-decoration: none; font-size: 14px;
+            background: var(--card); border: 1px solid var(--line);
+            padding: 7px 12px; border-radius: 999px;
+        }
+
+        .title { font-size: 16px; font-weight: 600; letter-spacing: .3px; }
+
+        .badge {
+            margin-left: auto; font-size: 12px; padding: 5px 10px; border-radius: 999px;
+            background: var(--field); color: var(--muted); border: 1px solid var(--line);
+        }
+        .badge.ok { color: var(--ok); }
+        .badge.warn { color: var(--warn); }
+        .badge.err { color: var(--err); }
+
+        .caption {
+            flex: 1; min-height: 0; overflow-y: auto;
+            background: var(--card); border: 1px solid var(--line);
+            border-radius: 16px; padding: 16px;
+            font-size: 20px; line-height: 1.65;
+            display: flex; flex-direction: column; justify-content: flex-end;
+        }
+
+        .cap-line { margin: 0 0 6px; word-break: break-word; }
+        .cap-line.done { color: var(--ink); }
+        .cap-line.live { color: var(--ink-2); }
+        .cap-line.live::after {
+            content: ""; display: inline-block; width: 2px; height: 1em;
+            background: var(--accent); margin-left: 3px; vertical-align: -2px;
+            animation: blink 1s steps(2, start) infinite;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        .empty { color: var(--muted); font-size: 15px; line-height: 1.7; }
+
+        .row { display: flex; align-items: center; gap: 10px; flex: none; }
+
+        .switch {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 13px; color: var(--ink-2);
+            background: var(--card); border: 1px solid var(--line);
+            padding: 10px 14px; border-radius: 12px; flex: 1;
+        }
+        .switch input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+        .mic {
+            flex: none; width: 100%; height: 74px; border: 0; border-radius: 20px;
+            background: var(--accent); color: #fff; font-size: 19px; font-weight: 600;
+            touch-action: none; user-select: none; -webkit-user-select: none;
+            transition: transform .08s ease, background .15s ease;
+        }
+        .mic:disabled { background: var(--field); color: var(--muted); }
+        .mic.on { background: var(--err); transform: scale(.985); }
+
+        .hint { font-size: 12px; color: var(--muted); text-align: center; flex: none; }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <header>
+            <a class="back" href="/touchpad">← 返回</a>
+            <span class="title">语音输入</span>
+            <span class="badge" id="badge">连接中</span>
+        </header>
+
+        <div class="caption" id="caption">
+            <div class="empty" id="empty">
+                按住下面的按钮说话，文字会实时出现在这里。<br>
+                说完停顿一下就会自动断句，并直接打到电脑光标处。
+            </div>
+        </div>
+
+        <div class="row">
+            <label class="switch">
+                <input type="checkbox" id="autoSend" checked>
+                说完一句自动上屏
+            </label>
+        </div>
+
+        <button class="mic" id="mic" disabled>按住说话</button>
+        <div class="hint" id="hint">识别在电脑端完成，手机只负责采集声音</div>
+    </div>
+
+    <script src="/static/js/socket.io.min.js"></script>
+    <script>
+        (function () {
+            'use strict';
+
+            var socket = null;
+            var connected = false;
+            var modelReady = false;
+            var recording = false;
+
+            var audioCtx = null;
+            var micStream = null;
+            var sourceNode = null;
+            var procNode = null;
+            var pending = new Int16Array(0);
+            var CHUNK = 1600;            // 100ms @16k
+            var MAX_LINES = 12;
+
+            var badge = document.getElementById('badge');
+            var caption = document.getElementById('caption');
+            var empty = document.getElementById('empty');
+            var micBtn = document.getElementById('mic');
+            var autoSend = document.getElementById('autoSend');
+            var hint = document.getElementById('hint');
+
+            var liveLine = null;         // 当前正在识别的行
+
+            function setBadge(text, cls) {
+                badge.textContent = text;
+                badge.className = 'badge' + (cls ? ' ' + cls : '');
+            }
+
+            function updateMicState() {
+                micBtn.disabled = !(connected && modelReady);
+                micBtn.textContent = recording ? '松开结束' : (modelReady ? '按住说话' : '模型加载中…');
+                micBtn.classList.toggle('on', recording);
+            }
+
+            function clearEmpty() {
+                if (empty && empty.parentNode) empty.parentNode.removeChild(empty);
+            }
+
+            function ensureLiveLine() {
+                clearEmpty();
+                if (!liveLine) {
+                    liveLine = document.createElement('div');
+                    liveLine.className = 'cap-line live';
+                    caption.appendChild(liveLine);
+                }
+                return liveLine;
+            }
+
+            function pushDone(text) {
+                if (!text) return;
+                clearEmpty();
+                var div = document.createElement('div');
+                div.className = 'cap-line done';
+                div.textContent = text;
+                caption.insertBefore(div, liveLine || null);
+                while (caption.querySelectorAll('.cap-line.done').length > MAX_LINES) {
+                    var first = caption.querySelector('.cap-line.done');
+                    if (!first) break;
+                    first.parentNode.removeChild(first);
+                }
+                caption.scrollTop = caption.scrollHeight;
+            }
+
+            function commitLine(text) {
+                if (text) pushDone(text);
+                if (liveLine) { liveLine.textContent = ''; }
+            }
+
+            function sendToPc(text) {
+                if (!text || !socket) return;
+                socket.emit('type_text', { text: text });
+            }
+
+            // ---------- 连接 ----------
+            function connect() {
+                socket = io({
+                    transports: ['websocket', 'polling'],
+                    reconnection: true,
+                    reconnectionDelay: 800
+                });
+
+                socket.on('connect', function () {
+                    connected = true;
+                    socket.emit('voice_status');
+                });
+
+                socket.on('disconnect', function () {
+                    connected = false;
+                    setBadge('已断开', 'err');
+                    updateMicState();
+                });
+
+                socket.on('voice_state', function (d) {
+                    modelReady = !!(d && d.ready);
+                    if (d && d.error) {
+                        setBadge('模型错误', 'err');
+                        hint.textContent = d.error;
+                    } else if (d && d.loading) {
+                        setBadge('加载模型…', 'warn');
+                    } else if (modelReady) {
+                        if (d.engine === 'volc') {
+                            setBadge('云端就绪', 'ok');
+                            hint.textContent = '豆包语音 2.0 · 热词纠正专名'
+                                + (d.fallback ? ' · 本地兜底已启用' : '');
+                        } else {
+                            setBadge('本地就绪', 'ok');
+                            hint.textContent = '离线识别 · ' + (d.model || '');
+                        }
+                    }
+                    updateMicState();
+                });
+
+                socket.on('voice_partial', function (d) {
+                    if (!d) return;
+                    var line = ensureLiveLine();
+                    line.textContent = d.text || '';
+                    caption.scrollTop = caption.scrollHeight;
+                    if (d.endpoint) {
+                        var text = (d.text || '').trim();
+                        commitLine(text);
+                        if (autoSend.checked) sendToPc(text);
+                    }
+                });
+
+                socket.on('voice_final', function (d) {
+                    var text = ((d && d.text) || '').trim();
+                    commitLine(text);
+                    if (autoSend.checked) sendToPc(text);
+                });
+            }
+
+            // ---------- 音频采集 ----------
+            function toInt16(f32, inRate) {
+                var samples = f32;
+                if (inRate !== 16000) {
+                    var ratio = inRate / 16000;
+                    var outLen = Math.floor(f32.length / ratio);
+                    samples = new Float32Array(outLen);
+                    for (var i = 0; i < outLen; i++) {
+                        var pos = i * ratio;
+                        var i0 = Math.floor(pos);
+                        var i1 = Math.min(i0 + 1, f32.length - 1);
+                        var frac = pos - i0;
+                        samples[i] = f32[i0] * (1 - frac) + f32[i1] * frac;
+                    }
+                }
+                var out = new Int16Array(samples.length);
+                for (var j = 0; j < samples.length; j++) {
+                    var v = Math.max(-1, Math.min(1, samples[j]));
+                    out[j] = v < 0 ? v * 32768 : v * 32767;
+                }
+                return out;
+            }
+
+            function appendChunk(i16) {
+                var merged = new Int16Array(pending.length + i16.length);
+                merged.set(pending, 0);
+                merged.set(i16, pending.length);
+                pending = merged;
+                while (pending.length >= CHUNK) {
+                    var chunk = pending.slice(0, CHUNK);
+                    pending = pending.slice(CHUNK);
+                    if (socket && connected) socket.emit('voice_audio', chunk.buffer);
+                }
+            }
+
+            async function startRecording() {
+                if (recording || !connected || !modelReady) return;
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            channelCount: 1,
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        }
+                    });
+                } catch (e) {
+                    setBadge('麦克风被拒', 'err');
+                    hint.textContent = '无法访问麦克风：' + (e && e.message ? e.message : e);
+                    return;
+                }
+
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+                sourceNode = audioCtx.createMediaStreamSource(micStream);
+                procNode = audioCtx.createScriptProcessor(1024, 1, 1);
+                pending = new Int16Array(0);
+
+                procNode.onaudioprocess = function (ev) {
+                    if (!recording) return;
+                    appendChunk(toInt16(ev.inputBuffer.getChannelData(0), audioCtx.sampleRate));
+                };
+
+                sourceNode.connect(procNode);
+                procNode.connect(audioCtx.destination);
+
+                recording = true;
+                liveLine = null;
+                socket.emit('voice_start');
+                updateMicState();
+            }
+
+            function stopRecording() {
+                if (!recording) return;
+                recording = false;
+
+                try { if (procNode) { procNode.onaudioprocess = null; procNode.disconnect(); } } catch (e) { }
+                try { if (sourceNode) sourceNode.disconnect(); } catch (e) { }
+                try { if (micStream) micStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { }
+                try { if (audioCtx) audioCtx.close(); } catch (e) { }
+                procNode = sourceNode = micStream = audioCtx = null;
+
+                if (socket && connected) {
+                    // 把尾巴（不足 100ms 的部分）发完，再告诉服务端收尾
+                    if (pending.length > 0) {
+                        socket.emit('voice_audio', pending.slice(0).buffer);
+                        pending = new Int16Array(0);
+                    }
+                    socket.emit('voice_end');
+                }
+                updateMicState();
+            }
+
+            micBtn.addEventListener('pointerdown', function (e) {
+                e.preventDefault();
+                startRecording();
+            });
+            ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (name) {
+                micBtn.addEventListener(name, function (e) {
+                    if (name === 'pointerleave' && !recording) return;
+                    e.preventDefault();
+                    stopRecording();
+                });
+            });
+
+            document.addEventListener('visibilitychange', function () {
+                if (document.hidden) stopRecording();
+            });
+            window.addEventListener('pagehide', stopRecording);
+
+            updateMicState();
+            connect();
+
+            // 调试钩子：?autotest=6 表示模型就绪后自动录 6 秒再停。
+            // 配合 Chrome 的 --use-file-for-fake-audio-capture 就能在无麦克风环境里跑通整条链路。
+            var at = new URLSearchParams(location.search).get('autotest');
+            if (at) {
+                autoSend.checked = false;   // 自测时不往电脑光标里打字
+                var began = false;
+                var timer = setInterval(function () {
+                    if (connected && modelReady && !began) {
+                        began = true;
+                        clearInterval(timer);
+                        startRecording();
+                        setTimeout(stopRecording, Math.max(1, parseFloat(at) || 6) * 1000);
+                    }
+                }, 200);
+            }
+        })();
+    </script>
+</body>
+
+</html>

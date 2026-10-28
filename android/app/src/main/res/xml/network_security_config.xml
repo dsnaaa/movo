@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 服务端用的是自签名证书：信任系统根证书，同时允许用户自己安装的 CA。
+     如果你以后用本地 CA 给 192.168.31.12 签一张证书并装进手机，这个 App 就不会再弹信任框。 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

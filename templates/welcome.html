@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Movo</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  :root {
+    --bg-0: #08090d;
+    --bg-1: #101319;
+    --card: #151821;
+    --card-2: #1b1f2a;
+    --line: rgba(255, 255, 255, .075);
+    --line-soft: rgba(255, 255, 255, .045);
+    --text: #eef1f7;
+    --text-2: #9aa3b2;
+    --text-3: #6b7383;
+    --brand: #4a9dff;
+    --brand-2: #2f6bff;
+    --ok: #35c66b;
+    --warn: #f0a63c;
+    --err: #f0605a;
+  }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(1100px 620px at 18% -12%, rgba(47, 107, 255, .16), transparent 62%),
+      radial-gradient(820px 520px at 96% 6%, rgba(74, 157, 255, .09), transparent 58%),
+      var(--bg-0);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei UI",
+                 "PingFang SC", "Hiragino Sans GB", sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    padding: 44px 22px 64px;
+  }
+
+  .wrap { width: 100%; max-width: 700px; margin: 0 auto; }
+
+  /* ---------- 头部 ---------- */
+  .head { display: flex; align-items: center; gap: 16px; margin-bottom: 30px; }
+  .logo {
+    width: 60px; height: 60px; flex: none; border-radius: 17px;
+    box-shadow: 0 8px 26px rgba(47, 107, 255, .3), 0 1px 0 rgba(255, 255, 255, .1) inset;
+  }
+  .head h1 {
+    margin: 0; font-size: 25px; font-weight: 650; letter-spacing: -.4px;
+    line-height: 1.25;
+  }
+  .head .sub { margin: 2px 0 0; color: var(--text-2); font-size: 14px; }
+
+  /* ---------- 卡片 ---------- */
+  .card {
+    background: linear-gradient(180deg, var(--card), var(--card-2));
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 22px 24px;
+    margin-bottom: 14px;
+  }
+  .card h2 {
+    margin: 0 0 14px; font-size: 15px; font-weight: 620;
+    letter-spacing: .1px; display: flex; align-items: center; gap: 8px;
+  }
+  .card h2 .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--brand); flex: none;
+  }
+  .card p { margin: 0 0 10px; color: var(--text-2); font-size: 14px; }
+  .card p:last-child { margin-bottom: 0; }
+
+  /* ---------- 运行状态 ---------- */
+  .status { border-color: rgba(53, 198, 107, .26); background: linear-gradient(180deg, rgba(53,198,107,.075), rgba(53,198,107,.028)); }
+  .status-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pulse {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none;
+    box-shadow: 0 0 0 0 rgba(53, 198, 107, .55);
+    animation: pulse 2s ease-out infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(53, 198, 107, .5); }
+    70%  { box-shadow: 0 0 0 9px rgba(53, 198, 107, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(53, 198, 107, 0); }
+  }
+  .status strong { font-weight: 620; }
+  .addr {
+    display: inline-block; margin-top: 10px; padding: 8px 13px;
+    background: rgba(0, 0, 0, .34); border: 1px solid var(--line-soft);
+    border-radius: 9px; font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 13.5px; color: #cfe2ff; user-select: all; word-break: break-all;
+  }
+
+  /* ---------- 功能列表 ---------- */
+  .feat { display: grid; gap: 15px; }
+  .feat-item { display: flex; gap: 13px; }
+  .feat-ico {
+    width: 34px; height: 34px; flex: none; border-radius: 10px;
+    background: rgba(74, 157, 255, .1);
+    border: 1px solid rgba(74, 157, 255, .18);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .feat-ico svg { width: 17px; height: 17px; stroke: var(--brand); fill: none;
+    stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .feat-body b { display: block; font-weight: 600; font-size: 14.5px; margin-bottom: 1px; }
+  .feat-body span { color: var(--text-2); font-size: 13.5px; }
+
+  /* ---------- 表单 ---------- */
+  .field-label {
+    display: block; margin: 18px 0 7px; font-size: 13px;
+    font-weight: 600; color: var(--text);
+  }
+  .input-row { position: relative; display: flex; gap: 9px; }
+  input[type=text], input[type=password] {
+    flex: 1; min-width: 0;
+    background: rgba(0, 0, 0, .38);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 11px 44px 11px 14px;
+    font-size: 14px;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input::placeholder { color: var(--text-3); font-family: inherit; }
+  input:focus {
+    border-color: rgba(74, 157, 255, .55);
+    box-shadow: 0 0 0 3px rgba(74, 157, 255, .12);
+  }
+  .eye {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    width: 32px; height: 32px; border: 0; background: transparent; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; border-radius: 8px;
+    color: var(--text-3);
+  }
+  .eye:hover { color: var(--text-2); background: rgba(255, 255, 255, .05); }
+  .eye svg { width: 17px; height: 17px; stroke: currentColor; fill: none;
+    stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  .actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+
+  button.btn {
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .045);
+    color: var(--text);
+    padding: 11px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 550;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background .15s, transform .06s, opacity .15s;
+  }
+  button.btn:hover { background: rgba(255, 255, 255, .085); }
+  button.btn:active { transform: translateY(1px); }
+  button.btn:disabled { opacity: .5; cursor: default; transform: none; }
+  button.primary {
+    background: linear-gradient(135deg, var(--brand), var(--brand-2));
+    border-color: transparent; color: #fff;
+    box-shadow: 0 4px 16px rgba(47, 107, 255, .28);
+  }
+  button.primary:hover { filter: brightness(1.07); background: linear-gradient(135deg, var(--brand), var(--brand-2)); }
+
+  /* ---------- 提示 ---------- */
+  .msg {
+    margin-top: 14px; padding: 11px 14px; border-radius: 10px;
+    font-size: 13.5px; display: none; line-height: 1.55;
+  }
+  .msg.show { display: block; }
+  .msg.ok  { background: rgba(53, 198, 107, .1); border: 1px solid rgba(53, 198, 107, .3); color: #9fe9bb; }
+  .msg.err { background: rgba(240, 96, 90, .1); border: 1px solid rgba(240, 96, 90, .3); color: #ffb4b0; }
+  .msg.busy{ background: rgba(74, 157, 255, .1); border: 1px solid rgba(74, 157, 255, .26); color: #b6d5ff; }
+  .msg .hint { display: block; margin-top: 5px; opacity: .82; font-size: 12.8px; }
+
+  /* ---------- 折叠说明 ---------- */
+  details {
+    margin-top: 15px; border: 1px solid var(--line-soft); border-radius: 10px;
+    background: rgba(0, 0, 0, .2); overflow: hidden;
+  }
+  summary {
+    cursor: pointer; padding: 11px 14px; font-size: 13.5px; color: var(--text-2);
+    list-style: none; user-select: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::before {
+    content: "›"; display: inline-block; margin-right: 9px; color: var(--brand);
+    font-size: 16px; line-height: 1; transition: transform .16s; transform-origin: center;
+  }
+  details[open] summary::before { transform: rotate(90deg); }
+  summary:hover { color: var(--text); }
+  .steps { margin: 0; padding: 2px 18px 16px 34px; color: var(--text-2); font-size: 13.5px; }
+  .steps li { margin-bottom: 6px; }
+  .steps li:last-child { margin-bottom: 0; }
+  .steps b { color: var(--text); font-weight: 600; }
+  code {
+    background: rgba(255, 255, 255, .07); padding: 1.5px 6px; border-radius: 5px;
+    font-family: "SFMono-Regular", Consolas, monospace; font-size: 12.6px; color: #cfe2ff;
+  }
+
+  /* ---------- 页脚 ---------- */
+  .foot { margin-top: 22px; color: var(--text-3); font-size: 13px; text-align: center; }
+  .foot a { color: var(--text-2); text-decoration: none; border-bottom: 1px dashed var(--line); }
+  .foot a:hover { color: var(--brand); border-color: var(--brand); }
+  .foot .sep { margin: 0 9px; opacity: .45; }
+
+  .configured-note {
+    display: flex; align-items: center; gap: 7px; color: #8fe3ae; font-size: 13px;
+    margin-top: 12px;
+  }
+  .configured-note svg { width: 15px; height: 15px; stroke: currentColor; fill: none;
+    stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <img class="logo" src="/static/app-icon.png" alt="Movo" width="60" height="60">
+    <div>
+      {% if configured %}
+      <h1>Movo 正在运行</h1>
+      <p class="sub">服务已在后台，关掉这个页面也不会停</p>
+      {% else %}
+      <h1>欢迎使用 Movo</h1>
+      <p class="sub">把手机变成电脑的触控板、键盘和语音输入</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if configured %}
+  <section class="card status">
+    <div class="status-row">
+      <span class="pulse"></span>
+      <strong>服务运行中</strong>
+      <span style="color:var(--text-2);font-size:13.5px;">端口 {{ local_url.split(':')[2].split('/')[0] }}</span>
+    </div>
+    {% if phone_url %}
+    <p style="margin:12px 0 0;font-size:13.5px;color:var(--text-2);">手机连接（需与电脑在同一个 Wi-Fi）：</p>
+    <span class="addr">{{ phone_url }}</span>
+    {% endif %}
+    <div class="actions">
+      <a href="{{ local_url }}" target="_blank" style="text-decoration:none;">
+        <button class="btn primary" type="button">在这台电脑上打开触控板</button>
+      </a>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="card">
+    <h2><span class="dot"></span>它能做什么</h2>
+    <div class="feat">
+      <div class="feat-item">
+        <div class="feat-ico">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2.5"/><path d="M8 21h8"/><path d="M12 18v3"/></svg>
+        </div>
+        <div class="feat-body">
+          <b>触控板</b>
+          <span>单指滑动移动光标，轻点就是左键；双指上下滚动，双指捏合缩放，长按拖拽选中。</span>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-ico">
+          <svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2.5"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/></svg>
+        </div>
+        <div class="feat-body">
+          <b>键盘与输入框</b>
+          <span>完整键盘布局，还有一条输入框——手机打好字自动上屏，中文拼音也不会打断。</span>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-ico">
+          <svg viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3.5"/></svg>
+        </div>
+        <div class="feat-body">
+          <b>语音输入</b>
+          <span>按住话筒说话，松手整段上屏。断句自动切分，中英混说也能认出专有名词。</span>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-ico">
+          <svg viewBox="0 0 24 24"><path d="M8 6l-5 6 5 6"/><path d="M16 6l5 6-5 6"/></svg>
+        </div>
+        <div class="feat-body">
+          <b>Code 遥控</b>
+          <span>常用快捷键一键触发，改代码、切窗口、跑终端都不用把手从手机上挪开。</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="voice-card">
+    <h2><span class="dot"></span>语音识别需要你自己的 API Key</h2>
+    <p>
+      Movo 的语音输入调用<strong style="color:var(--text);">火山引擎「豆包语音识别」</strong>，
+      识别在云端完成、按你自己的账号额度计费。所以安装包里不会带任何密钥——
+      填你自己的 Key，用多少算多少。
+    </p>
+
+    {% if configured %}
+    <div class="configured-note">
+      <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+      <span>已配置{% if key_tail %}（当前 Key 尾号 {{ key_tail }}）{% endif %}</span>
+    </div>
+    {% endif %}
+
+    <details {% if configured %}{% else %}open{% endif %}>
+      <summary>如何获取 API Key</summary>
+      <ol class="steps">
+        <li>登录 <b>火山引擎控制台</b>，进入「智能语音技术」。</li>
+        <li>开通 <b>流式语音识别大模型</b>（SAUC）。开通后权限生效可能要几分钟。</li>
+        <li>在 <b>API Key 管理</b> 里创建一个 Key 并复制，形如 <code>x-x-x-x-x</code>。</li>
+        <li>粘贴到下面，先点「测试连接」确认可用，再保存。</li>
+      </ol>
+    </details>
+
+    <label class="field-label" for="key">API Key</label>
+    <div class="input-row">
+      <input id="key" type="password" autocomplete="off" spellcheck="false"
+             placeholder="粘贴你的火山引擎 API Key">
+      <button class="eye" id="eye" type="button" aria-label="显示或隐藏">
+        <svg viewBox="0 0 24 24" id="eye-icon"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/></svg>
+      </button>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="test" type="button">测试连接</button>
+      <button class="btn primary" id="save" type="button">保存并完成</button>
+    </div>
+
+    <div class="msg" id="msg"></div>
+  </section>
+
+  <p class="foot">
+    暂时不填也可以，语音会自动使用内置的离线模型（准确率低一些，中英混说容易出错）。
+    <br>
+    关掉这个页面不影响使用<span class="sep">·</span>Movo 会一直在系统托盘里运行
+  </p>
+</div>
+
+<script>
+(function () {
+  var input = document.getElementById('key');
+  var eye = document.getElementById('eye');
+  var eyeIcon = document.getElementById('eye-icon');
+  var btnTest = document.getElementById('test');
+  var btnSave = document.getElementById('save');
+  var msg = document.getElementById('msg');
+
+  var EYE_OPEN = '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/>';
+  var EYE_OFF = '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.9 9.9 0 0 1 12 6c6.4 0 10 6 10 6a17 17 0 0 1-3.2 3.8"/><path d="M6.6 7.4A16.7 16.7 0 0 0 2 12s3.6 6 10 6a9.6 9.6 0 0 0 3.6-.7"/>';
+
+  eye.addEventListener('click', function () {
+    var show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    eyeIcon.innerHTML = show ? EYE_OFF : EYE_OPEN;
+  });
+
+  function show(kind, text, hint) {
+    msg.className = 'msg show ' + kind;
+    msg.innerHTML = text + (hint ? '<span class="hint">' + hint + '</span>' : '');
+  }
+
+  function hide() { msg.className = 'msg'; msg.textContent = ''; }
+
+  function busy(flag) {
+    btnTest.disabled = flag;
+    btnSave.disabled = flag;
+  }
+
+  function value() { return (input.value || '').trim(); }
+
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(function (r) { return r.json(); });
+  }
+
+  input.addEventListener('input', hide);
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); btnSave.click(); }
+  });
+
+  btnTest.addEventListener('click', function () {
+    var key = value();
+    if (!key) { show('err', '先把 API Key 粘进来'); input.focus(); return; }
+    busy(true);
+    show('busy', '正在连接火山引擎…');
+    post('/api/voice-test', { api_key: key }).then(function (r) {
+      busy(false);
+      if (r.ok) show('ok', r.message);
+      else show('err', r.message, r.hint || '');
+    }).catch(function (e) {
+      busy(false);
+      show('err', '测试失败：' + e.message);
+    });
+  });
+
+  btnSave.addEventListener('click', function () {
+    var key = value();
+    if (!key) { show('err', '先把 API Key 粘进来'); input.focus(); return; }
+    busy(true);
+    show('busy', '正在保存…');
+    post('/api/voice-config', { api_key: key }).then(function (r) {
+      busy(false);
+      if (!r.ok) { show('err', r.message || '保存失败'); return; }
+      input.blur();
+      show('ok', r.message, '现在可以去手机上按住话筒试试了');
+      btnTest.disabled = true;
+      btnSave.disabled = true;
+      btnSave.textContent = '已保存';
+      var a = document.createElement('a');
+      a.href = '{{ local_url }}';
+      a.target = '_blank';
+      a.style.textDecoration = 'none';
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn';
+      b.textContent = '打开触控板';
+      a.appendChild(b);
+      msg.appendChild(document.createElement('br'));
+      msg.appendChild(a);
+    }).catch(function (e) {
+      busy(false);
+      show('err', '保存失败：' + e.message);
+    });
+  });
+})();
+</script>
+</body>
+</html>

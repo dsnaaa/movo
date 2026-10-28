@@ -1,0 +1,27 @@
+# ---- 构建 / 运行产物 ----
+dist/
+download/
+build/
+.venv/
+__pycache__/
+*.pyc
+*.log
+nohup.out
+MovoServer.spec
+
+# ---- 一次性调试产物 ----
+_tmp_chrome_*/
+_shots/
+_sv_mix/
+voice_shot.png
+_diag.log*
+
+# ---- 含敏感信息，不入库 ----
+cert.pem
+key.pem
+voice_config.json
+
+# ---- 语音识别模型（200MB+ 级别，用户自行下载：
+# https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models
+# 解压到 models/ 即可，程序自动按目录名挑）----
+models/

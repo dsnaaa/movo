@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<title>触感实验室</title>
+<style>
+  :root{
+    --bg:#000; --nav:#17171a; --card:#0d0d10; --field:#141418; --field2:#1e1e24;
+    --line:#2f2f36; --line2:#232329; --txt:#f2f2f5; --txt2:#9a9aa2; --txt3:#5c5c66;
+    --accent:#0A84FF; --accent2:#10283f; --ok:#3ba55d; --bad:#a33333;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"HarmonyOS Sans","MiSans","Segoe UI",sans-serif;
+    -webkit-user-select:none;user-select:none}
+  body{padding:0 14px calc(96px + env(safe-area-inset-bottom));}
+  header{padding:18px 2px 6px}
+  h1{font-size:19px;font-weight:600;margin:0 0 6px}
+  .sub{font-size:12px;color:var(--txt2);line-height:1.5}
+  .badge{display:inline-block;font-size:11px;color:var(--txt2);background:var(--field);
+    border:1px solid var(--line2);border-radius:6px;padding:3px 7px;margin:8px 6px 0 0}
+  h2{font-size:14px;font-weight:600;margin:26px 2px 10px;color:var(--txt)}
+  h2 span{font-weight:400;font-size:12px;color:var(--txt3);margin-left:6px}
+  .card{background:var(--card);border:1px solid var(--line2);border-radius:14px;
+    padding:14px;margin-bottom:12px}
+  .card .ttl{font-size:14px;font-weight:600;margin-bottom:4px}
+  .card .hint{font-size:12px;color:var(--txt2);line-height:1.5;margin-bottom:12px}
+  .opts{display:flex;flex-wrap:wrap;gap:8px}
+  .opt{flex:1 1 calc(50% - 8px);min-height:48px;background:var(--field);color:var(--txt);
+    border:1px solid var(--line);border-radius:10px;font-size:13px;font-family:inherit;
+    padding:8px 10px;display:flex;flex-direction:column;justify-content:center;gap:2px;
+    transition:border-color .12s,background .12s}
+  .opt:active{background:var(--field2)}
+  .opt.sel{border-color:var(--accent);background:var(--accent2)}
+  .opt .n{font-weight:500;font-size:12.5px;letter-spacing:.2px}
+  .opt .d{font-size:10.5px;color:var(--txt3)}
+  .row{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--line2)}
+  .row:last-child{border-bottom:none}
+  .row .v{font-size:10px;color:var(--txt3);width:26px;text-align:right;font-variant-numeric:tabular-nums}
+  .row .nm{flex:1;min-width:0}
+  .row .nm b{display:block;font-size:12.5px;font-weight:500;letter-spacing:.2px}
+  .row .nm i{display:block;font-size:11px;color:var(--txt3);font-style:normal;margin-top:2px}
+  .row .st{font-size:10px;color:var(--txt3);width:34px;text-align:center}
+  .row .st.ok{color:var(--ok)}
+  .row.play{background:var(--field2);border-radius:8px}
+  .row .go{font-size:11px;color:var(--txt2);border:1px solid var(--line);border-radius:7px;
+    padding:5px 9px;background:var(--field)}
+  .bar{display:flex;gap:8px;margin:10px 0 4px}
+  .bar button{flex:1;background:var(--field);border:1px solid var(--line);color:var(--txt2);
+    border-radius:9px;padding:10px;font-size:12px;font-family:inherit}
+  .bar button.on{color:var(--txt);border-color:var(--accent);background:var(--accent2)}
+  footer{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,#000 34%);
+    padding:20px 0 calc(14px + env(safe-area-inset-bottom));margin-top:8px}
+  .panel{background:var(--nav);border:1px solid var(--line);border-radius:14px;padding:12px}
+  .panel .ttl{font-size:12px;color:var(--txt2);margin-bottom:8px}
+  .panel code{display:block;font-size:11px;color:var(--txt);line-height:1.7;
+    font-family:ui-monospace,Menlo,monospace;word-break:break-all}
+  .panel .btns{display:flex;gap:8px;margin-top:10px}
+  .panel .btns button{flex:1;background:var(--field);border:1px solid var(--line);color:var(--txt);
+    border-radius:9px;padding:9px;font-size:12px;font-family:inherit}
+  .toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom));transform:translateX(-50%);
+    background:#1e1e24;border:1px solid var(--line);border-radius:9px;padding:8px 14px;
+    font-size:12px;color:var(--txt);opacity:0;pointer-events:none;transition:opacity .18s;z-index:9}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>触感实验室</h1>
+  <div class="sub">点一下就震一下。挑出手感最对的，底下会自动记下方案，点「复制」发我即可。</div>
+  <div id="env"></div>
+</header>
+
+<h2>你的五个动作<span>推荐候选，逐个试</span></h2>
+<div id="scenes"></div>
+
+<h2>全部系统等级<span id="cnt"></span></h2>
+<div class="card" style="padding:6px 12px">
+  <div id="list"></div>
+</div>
+<div class="bar">
+  <button id="playAll">全部连播一遍</button>
+  <button id="forceBtn">强制模式</button>
+</div>
+
+<footer>
+  <div class="panel">
+    <div class="ttl">当前方案（点按钮选中的会记在这里）</div>
+    <code id="summary">—</code>
+    <div class="btns">
+      <button id="copyBtn">复制给我</button>
+      <button id="clearBtn">清空</button>
+    </div>
+  </div>
+</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+var NATIVE = window.MovoNative && window.MovoNative.hapticConst;
+
+function rep(name,n){var a=[];while(n--)a.push(name);return a}
+
+var SCENES=[
+  {key:'tap',t:'单指轻点（左键）',h:'最常触发的一下。要"收得住"：短、脆，但不能吵。',opts:[
+    {n:'CLOCK_TICK',d:'表针走动 · 最轻',seq:['CLOCK_TICK']},
+    {n:'VIRTUAL_KEY',d:'虚拟键 · 标准',seq:['VIRTUAL_KEY']},
+    {n:'KEYBOARD_TAP',d:'键盘敲击',seq:['KEYBOARD_TAP']},
+    {n:'CONFIRM',d:'确认 · 稍重',seq:['CONFIRM']}
+  ]},
+  {key:'double',t:'双击',h:'两下之间隔 90ms。听是"哒·哒"还是"哒哒"——后者更像误触。',opts:[
+    {n:'CLOCK_TICK ×2',d:'轻脆两下',seq:['CLOCK_TICK','CLOCK_TICK'],gap:90},
+    {n:'VIRTUAL_KEY ×2',d:'标准两下',seq:['VIRTUAL_KEY','VIRTUAL_KEY'],gap:90},
+    {n:'SEGMENT_TICK ×2',d:'极轻两下',seq:['SEGMENT_TICK','SEGMENT_TICK'],gap:90},
+    {n:'CONFIRM ×1',d:'只震一次（重）',seq:['CONFIRM']}
+  ]},
+  {key:'long',t:'长按',h:'系统的 LONG_PRESS 本身就是"两段由弱到强"，通常不用自己拼。',opts:[
+    {n:'LONG_PRESS',d:'系统长按 · 两段',seq:['LONG_PRESS']},
+    {n:'CONTEXT_CLICK',d:'上下文 · 闷',seq:['CONTEXT_CLICK']},
+    {n:'CONFIRM',d:'确认',seq:['CONFIRM']},
+    {n:'CLICK→LONG',d:'先轻后重',seq:['VIRTUAL_KEY','LONG_PRESS'],gap:110}
+  ]},
+  {key:'right',t:'双指点击（右键）',h:'必须和左键明显不同：更重、更闷，或带第二段。',opts:[
+    {n:'CONTEXT_CLICK',d:'右键语义 · 最贴切',seq:['CONTEXT_CLICK']},
+    {n:'CONFIRM',d:'确认 · 重',seq:['CONFIRM']},
+    {n:'REJECT',d:'双段 · 有回弹',seq:['REJECT']},
+    {n:'LONG_PRESS',d:'两段渐强',seq:['LONG_PRESS']}
+  ]},
+  {key:'scroll',t:'滚动',h:'连播 6 下（40ms 一格）。真实滚动更密，太响会手麻——大概率要挑最轻的。',opts:[
+    {n:'SEGMENT_FREQUENT_TICK',d:'高频分段 · 最轻',seq:rep('SEGMENT_FREQUENT_TICK',6),gap:40},
+    {n:'SEGMENT_TICK',d:'分段滴答',seq:rep('SEGMENT_TICK',6),gap:40},
+    {n:'CLOCK_TICK',d:'表针 · 清',seq:rep('CLOCK_TICK',6),gap:40},
+    {n:'VIRTUAL_KEY',d:'标准键 · 偏响',seq:rep('VIRTUAL_KEY',6),gap:40}
+  ]}
+];
+
+var DESCS={
+  VIRTUAL_KEY:'虚拟按键（导航/软键）', KEYBOARD_TAP:'键盘敲击', CLOCK_TICK:'表针走动 · 最轻脆',
+  LONG_PRESS:'长按 · 两段渐强', CONTEXT_CLICK:'右键 / 上下文菜单', TEXT_HANDLE_MOVE:'文本选择手柄',
+  GESTURE_START:'手势开始', GESTURE_END:'手势结束', CONFIRM:'确认 · 重一点',
+  REJECT:'拒绝 / 失败 · 双段', TOGGLE_ON:'开关打开', TOGGLE_OFF:'开关关闭',
+  DRAG_START:'拖动开始', SEGMENT_TICK:'分段滚动滴答', SEGMENT_FREQUENT_TICK:'高频分段 · 更轻短'
+};
+
+var chosen={}, force=false, playing=false;
+
+function toast(msg){
+  var el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show');
+  clearTimeout(el._t); el._t=setTimeout(function(){el.classList.remove('show')},1100);
+}
+
+function play(name){
+  if(NATIVE){ return window.MovoNative.hapticConst(name, force); }
+  if(navigator.vibrate){ navigator.vibrate(10); return true; }
+  return false;
+}
+
+function runSeq(seq,gap){
+  gap=gap||0;
+  seq.forEach(function(nm,i){ setTimeout(function(){ play(nm); }, i*gap); });
+}
+
+function buildScenes(){
+  var host=document.getElementById('scenes');
+  SCENES.forEach(function(sc){
+    var card=document.createElement('div'); card.className='card';
+    card.innerHTML='<div class="ttl">'+sc.t+'</div><div class="hint">'+sc.h+'</div><div class="opts"></div>';
+    var box=card.querySelector('.opts');
+    sc.opts.forEach(function(o){
+      var b=document.createElement('button'); b.className='opt';
+      b.innerHTML='<span class="n">'+o.n+'</span><span class="d">'+o.d+'</span>';
+      b.onclick=function(){
+        // 只播序列本身；常量是否支持走纯查询接口，绝不能再顺手 play 一次（会多震一下）
+        var ok = NATIVE ? window.MovoNative.hapticConstExists(o.seq[0]) : true;
+        if(ok===false){ toast('这台机器没有 '+o.seq[0]); return; }
+        runSeq(o.seq,o.gap);
+        Array.prototype.forEach.call(box.children,function(c){c.classList.remove('sel')});
+        b.classList.add('sel');
+        chosen[sc.key]={label:o.n,seq:o.seq.join(' → '),gap:o.gap||0};
+        renderSummary();
+      };
+      box.appendChild(b);
+    });
+    host.appendChild(card);
+  });
+}
+
+function buildList(){
+  var host=document.getElementById('list');
+  var L=[];
+  try{ L=JSON.parse(window.MovoNative.hapticConstList()); }catch(e){ L=[]; }
+  document.getElementById('cnt').textContent = L.length? L.length+' 个 · 本机可用' : '';
+  if(!L.length){
+    host.innerHTML='<div class="row"><div class="nm"><b>没有原生桥</b><i>请用 Movo App 打开本页</i></div></div>';
+    return;
+  }
+  L.forEach(function(it){
+    var row=document.createElement('div'); row.className='row';
+    row.innerHTML='<div class="v">'+it.value+'</div>'+
+      '<div class="nm"><b>'+it.name+'</b><i>'+(DESCS[it.name]||'—')+'</i></div>'+
+      '<div class="st">·</div><button class="go">震</button>';
+    row.querySelector('.go').onclick=function(){
+      var ok=play(it.name);
+      row.querySelector('.st').textContent = ok===false? '✕':'✓';
+      row.querySelector('.st').className = 'st '+(ok===false?'':'ok');
+      row.classList.add('play'); setTimeout(function(){row.classList.remove('play')},260);
+    };
+    host.appendChild(row);
+  });
+}
+
+function playAll(){
+  if(playing) return; playing=true;
+  var rows=Array.prototype.slice.call(document.querySelectorAll('#list .row'));
+  var i=0;
+  (function step(){
+    if(i>=rows.length){ playing=false; return; }
+    rows[i].querySelector('.go').click();
+    i++; setTimeout(step,480);
+  })();
+}
+
+function renderSummary(){
+  var keys=Object.keys(chosen); var el=document.getElementById('summary');
+  if(!keys.length){ el.textContent='—'; return; }
+  var out={};
+  SCENES.forEach(function(sc){ if(chosen[sc.key]) out[sc.key]=chosen[sc.key]; });
+  el.textContent=JSON.stringify(out,null,2);
+}
+
+document.getElementById('playAll').onclick=playAll;
+document.getElementById('forceBtn').onclick=function(){
+  force=!force; this.classList.toggle('on',force);
+  toast(force?'强制模式：忽略系统触感开关':'普通模式');
+};
+document.getElementById('copyBtn').onclick=function(){
+  var txt=document.getElementById('summary').textContent;
+  if(txt==='—'){ toast('还没选'); return; }
+  try{
+    navigator.clipboard.writeText(txt).then(function(){toast('已复制')},function(){fallbackCopy(txt)});
+  }catch(e){ fallbackCopy(txt); }
+  function fallbackCopy(t){
+    var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
+    ta.select(); try{document.execCommand('copy');toast('已复制')}catch(e2){toast('复制失败，手动记录')}
+    document.body.removeChild(ta);
+  }
+};
+document.getElementById('clearBtn').onclick=function(){
+  chosen={}; renderSummary();
+  Array.prototype.forEach.call(document.querySelectorAll('.opt.sel'),function(c){c.classList.remove('sel')});
+};
+
+(function init(){
+  buildScenes(); buildList(); renderSummary();
+  var env=document.getElementById('env');
+  if(!NATIVE){ env.innerHTML='<span class="badge">未检测到原生桥 · 请用 App 打开</span>'; return; }
+  try{
+    var info=JSON.parse(window.MovoNative.vibrateInfo());
+    env.innerHTML='<span class="badge">'+info.model+' · Android '+info.sdk+'</span>'+
+      '<span class="badge">振幅控制 '+(info.amplitude?'✓':'✕')+'</span>'+
+      '<span class="badge">app v'+window.MovoNative.version()+'</span>';
+  }catch(e){}
+})();
+</script>
+</body>
+</html>

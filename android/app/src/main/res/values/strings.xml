@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Movo</string>
+    <string name="keepalive_channel">保持连接</string>
+    <string name="keepalive_title">Movo 运行中</string>
+    <string name="keepalive_text">与电脑的连接会一直保持</string>
+    <string name="cert_title">这是自签名证书</string>
+    <string name="cert_msg">%1$s 使用的是自签名 HTTPS 证书。\n只有确认它就是你电脑上的 Movo 服务时才继续。</string>
+    <string name="cert_trust">信任并记住</string>
+    <string name="cert_cancel">取消</string>
+    <string name="back_again">再按一次返回桌面</string>
+</resources>

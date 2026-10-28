@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Movo 随动</title>
+<script>
+/* 主题在首绘前定下来：URL 参数（原生跳转时带上）> 原生偏好 > 跟随系统。
+   主题统一入口就是本页的「主题」开关（写原生偏好 ui_theme），网页端读同一个键 */
+(function(){
+  var m = (location.search || '').match(/[?&]t=(light|dark)/);
+  var t = m ? m[1] : '';
+  if (t !== 'light' && t !== 'dark') {
+    try { t = window.MovoNative && MovoNative.getPref ? MovoNative.getPref('ui_theme') : ''; } catch(e){}
+  }
+  if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+<script src="i18n.js"></script>
+<style>
+  :root{
+    /* 石墨 + 琥珀：与 coding 页同一套夜间色板 */
+    --bg:#1b2028; --card:#252b35; --field:#222832; --line:#38414d; --line2:#2c333d;
+    --txt:#f1f2f5; --txt2:#adb5c2; --txt3:#858f9c;
+    --accent:#f1a544; --accent2:#3c3022;
+    --accent-hi:#f7c06a; --accent-lo:#d98a2b;
+    --on-ink:#241c0e; /* 琥珀底上的文字要用深色才看得清 */
+    --ok:#3ba55d; --bad:#e05555;
+    color-scheme:dark;
+  }
+  /* 没有显式主题时才跟随系统；被网页端主题接管后以 data-theme 为准 */
+  @media (prefers-color-scheme: light){
+    html:not([data-theme]){
+      --bg:#f1f4f8; --card:#fcfdff; --field:#f7f9fc; --line:#dce4ee; --line2:#e6ebf2;
+      --txt:#273548; --txt2:#65738a; --txt3:#8795a8;
+      --accent:#257ee9; --accent2:#e3efff;
+      --accent-hi:#5b9df0; --accent-lo:#1b63c4;
+      --on-ink:#fff; /* 日间蓝底配白字 */
+      color-scheme:light;
+    }
+  }
+  html[data-theme="light"]{
+    --bg:#f1f4f8; --card:#fcfdff; --field:#f7f9fc; --line:#dce4ee; --line2:#e6ebf2;
+    --txt:#273548; --txt2:#65738a; --txt3:#8795a8;
+    --accent:#257ee9; --accent2:#e3efff;
+    --accent-hi:#5b9df0; --accent-lo:#1b63c4;
+    --on-ink:#fff;
+    color-scheme:light;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"MiSans","HarmonyOS Sans","Segoe UI",sans-serif}
+  body{min-height:100vh;padding:calc(20px + var(--satop, env(safe-area-inset-top))) 22px calc(28px + var(--sabottom, env(safe-area-inset-bottom)));}
+  .wrap{max-width:520px;margin:0 auto}
+
+  /* ---------- 品牌区：Movo · 随动 ---------- */
+  header{display:flex;flex-direction:column;align-items:center;text-align:center;padding:30px 0 34px}
+  .logo{position:relative;width:88px;height:88px;border-radius:24px;
+    background:linear-gradient(160deg,var(--accent-hi) 0%,var(--accent) 58%,var(--accent-lo) 100%);
+    display:flex;align-items:center;justify-content:center;margin-bottom:22px;
+    box-shadow:0 14px 34px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.28)}
+  .logo::after{content:'';position:absolute;inset:0;border-radius:24px;
+    border:1px solid rgba(255,255,255,.22);pointer-events:none}
+  .logo svg{width:46px;height:46px;fill:none;stroke:#fff;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  h1{font-size:36px;font-weight:700;margin:0;letter-spacing:-.8px;line-height:1.1}
+  .cn{margin-top:9px;font-size:15px;font-weight:600;color:var(--accent);letter-spacing:12px;
+    text-indent:12px /* 抵消最后一字的字距，保证视觉居中 */}
+  .tag{margin:12px 0 0;font-size:13px;color:var(--txt2);letter-spacing:.5px}
+  .sub{font-size:13.5px;color:var(--txt2);line-height:1.65;margin:14px 0 0}
+  .only-settings header{padding:20px 0 26px}
+
+  .card{background:var(--card);border:1px solid var(--line2);border-radius:18px;padding:18px;margin-bottom:14px;
+    box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .label{font-size:12px;color:var(--txt2);margin:0 0 8px;display:flex;justify-content:space-between;align-items:baseline}
+  .label b{color:var(--txt);font-size:14px;font-weight:600}
+  .label i{font-style:normal;color:var(--txt3);font-size:11.5px}
+  input[type=text]{width:100%;background:var(--field);border:1px solid var(--line);border-radius:13px;
+    color:var(--txt);font-size:16px;font-family:inherit;padding:14px 14px;outline:none;
+    -webkit-user-select:text;user-select:text;transition:border-color .15s}
+  input[type=text]:focus{border-color:var(--accent)}
+  input[type=text].bad{border-color:var(--bad)}
+  .hint{font-size:11.5px;color:var(--txt3);line-height:1.6;margin:10px 2px 0}
+  .hint code{background:var(--field);border-radius:5px;padding:1px 5px}
+  input[type=range]{-webkit-appearance:none;width:100%;height:26px;background:transparent}
+  input[type=range]::-webkit-slider-runnable-track{height:5px;border-radius:3px;background:var(--field)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+    background:var(--accent);margin-top:-8.5px;border:none}
+  .row + .row{margin-top:20px}
+  /* 分段选择器：操作手（右手 / 左手） */
+  .seg{display:flex;background:var(--field);border-radius:11px;padding:3px;gap:3px}
+  .seg button{flex:1;border:none;border-radius:9px;padding:10px 0;font-size:13.5px;font-family:inherit;
+    background:transparent;color:var(--txt2);font-weight:600;transition:background .15s,color .15s}
+  .seg button.on{background:var(--accent);color:var(--on-ink)}
+  .btn{width:100%;border:none;border-radius:14px;padding:15px;font-size:16px;font-family:inherit;
+    font-weight:600;background:var(--accent);color:var(--on-ink);margin-top:4px}
+  .btn:active{opacity:.82}
+  .btn.ghost{background:transparent;color:var(--txt2);font-weight:400;font-size:14px;border:1px solid var(--line)}
+  .foot{text-align:center;font-size:11px;color:var(--txt3);margin-top:24px;line-height:1.9}
+  .toast{position:fixed;left:50%;bottom:calc(34px + var(--sabottom, env(safe-area-inset-bottom)));transform:translateX(-50%);
+    background:var(--field);color:var(--txt);border:1px solid var(--line2);border-radius:10px;padding:10px 16px;font-size:13px;
+    opacity:0;transition:opacity .18s;pointer-events:none}
+  .toast.show{opacity:1}
+  .only-settings{display:none}
+  body[data-mode=settings] .only-settings{display:block}
+  body[data-mode=settings] .only-welcome{display:none}
+
+  /* ---------- 设置页：紧凑排版 ---------- */
+  /* 顶部留白三页统一：状态栏高度 + 4px（无状态栏时保底 6px） */
+  body[data-mode=settings]{padding-top:max(6px, calc(var(--satop, env(safe-area-inset-top, 0px)) + 4px))}
+  /* 设置页顶栏改成与触控板 / coding 页同款紧凑行（返回 + 标题 + 品牌小字），
+     不再是居中大 logo——三页首行控件才会停在同一像素线上、视觉结构也一致 */
+  body[data-mode=settings] header{flex-direction:row;align-items:center;gap:10px;
+    text-align:left;padding:0 0 12px;min-height:36px}
+  body[data-mode=settings] .logo{display:none}
+  body[data-mode=settings] .topback{display:flex;flex:none;align-items:center;gap:3px;
+    height:34px;padding:0 13px 0 9px;border:1px solid var(--line2);border-radius:10px;
+    background:var(--card);color:var(--txt);font-size:13px;font-weight:600;font-family:inherit;
+    cursor:pointer;transition:transform .1s, background .12s}
+  body[data-mode=settings] .topback:active{transform:scale(.96);background:var(--accent2)}
+  body[data-mode=settings] .topback svg{width:15px;height:15px;stroke:currentColor;fill:none;
+    stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  body[data-mode=settings] h1{font-size:17px;letter-spacing:-.2px}
+  /* 设置页的品牌行：Movo 随动 · 标语，只占一行高度 */
+  .brandline{margin:7px 0 0;font-size:12.5px;color:var(--txt2);letter-spacing:.3px}
+  body[data-mode=settings] .brandline{margin:0 0 0 auto;font-size:11.5px}
+  .brandline b{color:var(--accent);font-weight:650}
+  body[data-mode=settings] .card{padding:14px 15px;margin-bottom:9px;border-radius:15px}
+  body[data-mode=settings] .label{margin-bottom:6px}
+  body[data-mode=settings] .row + .row{margin-top:13px}
+  body[data-mode=settings] input[type=text]{padding:12px 13px}
+  body[data-mode=settings] input[type=range]{height:22px}
+  body[data-mode=settings] .btn{padding:13px;margin-top:2px;border-radius:13px}
+  body[data-mode=settings] .btn.ghost{margin-top:8px !important;padding:11px}
+  body[data-mode=settings] .foot{margin-top:14px;font-size:10.5px}
+</style>
+</head>
+<body data-mode="welcome">
+<div class="wrap">
+  <header>
+    <button class="topback only-settings" aria-label="返回主页" data-i18n-aria="common.backhome"
+        onclick="backHome()">
+      <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg><span data-i18n="common.back">返回</span>
+    </button>
+    <div class="logo">
+      <!-- 指针 + 随动波纹：随心而动 -->
+      <svg viewBox="0 0 24 24">
+        <path d="M9.5 3.6 18.9 12l-4.6 1.2 2.6 4.9-2.3 1.2-2.6-4.9-2.5 3.4z"/>
+        <path d="M4.2 9.2c-.9-2.3-.4-4.6 1.2-6"/>
+        <path d="M2.6 12.2C1.3 8.9 1.9 5.5 4.3 3.1" opacity=".45"/>
+      </svg>
+    </div>
+    <h1 class="only-welcome">Movo</h1>
+    <div class="cn only-welcome" data-i18n="welcome.cn">随动</div>
+    <p class="tag only-welcome" data-i18n="welcome.tag">随心而动 · 轻松掌控</p>
+    <h1 class="only-settings" data-i18n="set.title">设置</h1>
+    <p class="brandline only-settings"><b>Movo</b> · <span data-i18n="set.brandline">随心而动，轻松掌控</span></p>
+  </header>
+
+  <div class="card">
+    <div class="label"><b data-i18n="set.addr">电脑服务地址</b><i data-i18n="set.addr.hint">IP:端口</i></div>
+    <input type="text" id="addr" inputmode="url" autocomplete="off" autocapitalize="off"
+           spellcheck="false" placeholder="192.168.31.12:5888" data-i18n-ph="set.addr.ph" autofocus>
+  </div>
+
+  <div class="card only-settings">
+    <div class="row">
+      <div class="label"><b data-i18n="set.pad.sense">触控板灵敏度</b><i id="pad-val">4.0</i></div>
+      <input type="range" id="pad-sense" min="1" max="10" step="0.1">
+    </div>
+    <div class="row">
+      <div class="label"><b data-i18n="set.gyro.sense">空鼠（陀螺仪）灵敏度</b><i id="gyro-val">0.6</i></div>
+      <input type="range" id="gyro-sense" min="0.1" max="5" step="0.1">
+    </div>
+    <div class="row">
+      <div class="label"><b data-i18n="set.type.delay">输入停顿后自动发送</b><i id="type-val">0.6 秒</i></div>
+      <input type="range" id="type-delay" min="0.3" max="3" step="0.1">
+    </div>
+    <div class="row">
+      <div class="label"><b data-i18n="set.hand">操作手</b><i data-i18n="set.hand.hint">滚轮条放哪边</i></div>
+      <div class="seg" id="hand-seg">
+        <button type="button" data-v="left" data-i18n="set.hand.left">左手</button>
+        <button type="button" data-v="right" data-i18n="set.hand.right">右手</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="label"><b data-i18n="set.display">显示模式</b><i data-i18n="set.display.hint">状态栏和导航栏</i></div>
+      <div class="seg" id="fs-seg">
+        <button type="button" data-v="off" data-i18n="set.display.on">显示系统栏</button>
+        <button type="button" data-v="on" data-i18n="set.display.off">全屏沉浸</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="label"><b data-i18n="set.theme">主题</b><i data-i18n="set.theme.hint">所有页面统一生效</i></div>
+      <div class="seg" id="theme-seg">
+        <button type="button" data-v="dark" data-i18n="set.theme.dark">夜间</button>
+        <button type="button" data-v="light" data-i18n="set.theme.light">日间</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="label"><b data-i18n="set.lang">语言 / Language</b><i data-i18n="set.lang.hint">所有页面统一生效</i></div>
+      <div class="seg" id="lang-seg">
+        <button type="button" data-v="zh">中文</button>
+        <button type="button" data-v="en">English</button>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn" id="go" data-i18n="set.ok">确定</button>
+
+  <div class="foot" id="foot"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  var N = window.MovoNative || null;
+  var L = (window.MovoLang && window.MovoLang.t) ? window.MovoLang.t : function(k){ return k; };
+  if (window.MovoLang) window.MovoLang.apply();
+  var q = location.search || '';
+  var mode = /mode=settings/.test(q) ? 'settings' : 'welcome';
+  document.body.setAttribute('data-mode', mode);
+
+  // 上次连接失败被原生层送回来：提示原因，方便改完地址直接重试
+  if (/err=connect/.test(q)) {
+    setTimeout(function(){
+      toast(L('set.toast.connectfail'));
+    }, 350);
+  }
+
+  var addr = document.getElementById('addr');
+  var go = document.getElementById('go');
+  var padS = document.getElementById('pad-sense');
+  var gyroS = document.getElementById('gyro-sense');
+  var typeS = document.getElementById('type-delay');
+  var padV = document.getElementById('pad-val');
+  var gyroV = document.getElementById('gyro-val');
+  var typeV = document.getElementById('type-val');
+  var toastEl = document.getElementById('toast');
+
+  function toast(m){
+    toastEl.textContent = m; toastEl.classList.add('show');
+    clearTimeout(toastEl._t); toastEl._t = setTimeout(function(){ toastEl.classList.remove('show'); }, 1600);
+  }
+
+  function pref(k, d){
+    try { if (N && N.getPref) { var v = N.getPref(k); if (v !== null && v !== '') return v; } } catch(e){}
+    return d;
+  }
+
+  // 预填：已保存的地址
+  try {
+    if (N && N.currentUrl) {
+      var u = N.currentUrl() || '';
+      var m = u.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+      if (m) addr.value = m;
+    }
+  } catch(e){}
+
+  var ps = parseFloat(pref('mouse_sense', '4.0')) || 4.0;
+  var gs = parseFloat(pref('gyro_sense', '0.6')) || 0.6;
+  var ts = parseFloat(pref('type_delay', '0.6')) || 0.6;
+  padS.value = ps; padV.textContent = ps.toFixed(1);
+  gyroS.value = gs; gyroV.textContent = gs.toFixed(1);
+  typeS.value = ts; typeV.textContent = ts.toFixed(1) + ' ' + L('set.sec');
+  padS.oninput = function(){ padV.textContent = parseFloat(this.value).toFixed(1); };
+  gyroS.oninput = function(){ gyroV.textContent = parseFloat(this.value).toFixed(1); };
+  typeS.oninput = function(){ typeV.textContent = parseFloat(this.value).toFixed(1) + ' ' + L('set.sec'); };
+
+  // 操作手：右手 = 滚轮条在触摸板右边（默认），左手 = 换到左边
+  var handSeg = document.getElementById('hand-seg');
+  var hand = pref('hand_mode', 'right') === 'left' ? 'left' : 'right';
+  function applyHandSeg(){
+    handSeg.querySelectorAll('button').forEach(function(b){
+      b.classList.toggle('on', b.getAttribute('data-v') === hand);
+    });
+  }
+  applyHandSeg();
+  handSeg.addEventListener('click', function(e){
+    var b = e.target.closest('button');
+    if (!b) return;
+    hand = b.getAttribute('data-v');
+    applyHandSeg();
+  });
+
+  // 显示模式：off = 显示状态栏和导航栏（默认），on = 全屏沉浸（边缘上滑临时出现）
+  var fsSeg = document.getElementById('fs-seg');
+  var fs = pref('fullscreen_mode', 'off') === 'on' ? 'on' : 'off';
+  function applyFsSeg(){
+    fsSeg.querySelectorAll('button').forEach(function(b){
+      b.classList.toggle('on', b.getAttribute('data-v') === fs);
+    });
+  }
+  applyFsSeg();
+  fsSeg.addEventListener('click', function(e){
+    var b = e.target.closest('button');
+    if (!b) return;
+    var v = b.getAttribute('data-v');
+    if (v === fs) return;
+    fs = v;
+    applyFsSeg();
+    try {
+      if (N && N.setPref) {
+        N.setPref('fullscreen_mode', fs);
+        if (N.applyFullscreen) N.applyFullscreen();   // 立即生效，不用退出重进
+      }
+    } catch(err){}
+    toast(fs === 'on' ? L('set.toast.fs.on') : L('set.toast.fs.off'));
+  });
+
+  // 主题：夜间（默认）/ 日间。写原生偏好 ui_theme（触控板/键盘/Code 页首绘都读它），
+  // 本页立即换肤，系统栏图标明暗由原生 setPref 里的 applySystemBars 重涂
+  var themeSeg = document.getElementById('theme-seg');
+  var uiTheme = pref('ui_theme', 'dark') === 'light' ? 'light' : 'dark';
+  function applyThemeSeg(){
+    themeSeg.querySelectorAll('button').forEach(function(b){
+      b.classList.toggle('on', b.getAttribute('data-v') === uiTheme);
+    });
+  }
+  applyThemeSeg();
+  themeSeg.addEventListener('click', function(e){
+    var b = e.target.closest('button');
+    if (!b) return;
+    var v = b.getAttribute('data-v');
+    if (v === uiTheme) return;
+    uiTheme = v;
+    applyThemeSeg();
+    document.documentElement.setAttribute('data-theme', uiTheme);
+    try { if (N && N.setPref) N.setPref('ui_theme', uiTheme); } catch(err){}
+    toast(uiTheme === 'light' ? L('set.toast.theme.light') : L('set.toast.theme.dark'));
+  });
+
+  // 语言：中文 / English。写原生偏好 ui_lang（触控板/键盘/Code 页首绘都读它），
+  // 本页立即换文案，其它页面下次加载自动跟随
+  var langSeg = document.getElementById('lang-seg');
+  var uiLang = (window.MovoLang && window.MovoLang.lang) ? window.MovoLang.lang() : 'zh';
+  function applyLangSeg(){
+    langSeg.querySelectorAll('button').forEach(function(b){
+      b.classList.toggle('on', b.getAttribute('data-v') === uiLang);
+    });
+  }
+  applyLangSeg();
+  langSeg.addEventListener('click', function(e){
+    var b = e.target.closest('button');
+    if (!b) return;
+    var v = b.getAttribute('data-v');
+    if (v === uiLang) return;
+    uiLang = v;
+    applyLangSeg();
+    try { window.MovoLang.set(uiLang); } catch(err){}
+    // 秒数这类带单位的值重刷一遍
+    typeV.textContent = parseFloat(typeS.value).toFixed(1) + ' ' + L('set.sec');
+    go.textContent = L('set.ok');
+    toast(uiLang === 'en' ? L('set.toast.lang.en') : L('set.toast.lang.zh'));
+  });
+
+  // 地址规范化：容忍带 https://、带路径、只写 IP
+  function normalize(raw){
+    var s = (raw || '').trim();
+    if (!s) return null;
+    s = s.replace(/^[a-z]+:\/\//i, '');
+    var hostport = s.split('/')[0];
+    if (!hostport) return null;
+    var host = hostport, port = '5888', m;
+    if ((m = hostport.match(/^([^:]+):(\d{1,5})$/))) { host = m[1]; port = m[2]; }
+    else if (/:/.test(hostport)) return null;
+    if (!/^[A-Za-z0-9.\-]{1,64}$/.test(host)) return null;
+    return 'https://' + host + ':' + port + '/touchpad';
+  }
+
+  go.onclick = function(){
+    var url = normalize(addr.value);
+    if (!url) { addr.classList.add('bad'); toast(L('set.toast.badaddr')); return; }
+    addr.classList.remove('bad');
+    try {
+      if (N && N.setPref) {
+        N.setPref('mouse_sense', parseFloat(padS.value));
+        N.setPref('gyro_sense', parseFloat(gyroS.value));
+        N.setPref('type_delay', parseFloat(typeS.value));
+        N.setPref('hand_mode', hand);
+      }
+      if (N && N.saveUrl) {
+        N.saveUrl(url);
+        // 连接中状态：15 秒还没跳走（原生层没报错也没加载成功）就算超时
+        go.disabled = true; go.textContent = L('set.connecting');
+        setTimeout(function(){
+          go.disabled = false; go.textContent = L('set.ok');
+          toast(L('set.toast.timeout'));
+        }, 15000);
+        if (N.goTouchpad) { N.goTouchpad(); return; }
+      }
+    } catch(e){}
+    location.href = url;
+  };
+
+  // 顶栏「‹ 返回」：直接回主页，不再靠 history.back()
+  // （页面是跳转进来的，历史会越攒越长，返回键就变成层层倒退）
+  window.backHome = function(){
+    try { if (N && N.goTouchpad) { N.goTouchpad(); return; } } catch(e){}
+    location.replace('/touchpad');
+  };
+
+  // 软键盘上的「前往 / 完成 / 回车」直接提交，省一次点击
+  addr.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.keyCode === 13) { e.preventDefault(); go.click(); } });
+
+  document.getElementById('foot').innerHTML =
+    L('set.foot') + (N && N.version ? ' · v' + N.version() : '');
+})();
+</script>
+</body>
+</html>

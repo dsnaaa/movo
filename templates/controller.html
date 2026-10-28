@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title data-i18n="app.title.cp">Movo | Code</title>
+    <link rel="icon" type="image/png" href="/static/controller/favicon.png">
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/voice.js?v=20261028m"></script>
+    <script>
+        // 词表在上一行加载，取词仍延迟到调用时再查，避免加载顺序问题
+        function T(k, a, b) {
+            return (window.MovoLang && MovoLang.t) ? MovoLang.t(k, a, b) : k;
+        }
+    </script>
+    <style>
+        /* ---------- 主题变量：夜间 :root / 日间 html[data-theme="light"] ----------
+           与触控板页、键盘页共用 localStorage.movo_theme */
+        :root {
+            --bg: #1b2028;
+            --card: #252b35;
+            --field: #222832;
+            --ink: #f1f2f5;
+            --ink-2: #adb5c2;
+            --muted: #858f9c;
+            --accent: #f1a544;
+            --accent-weak: #3c3022;
+            --stroke: #38414d;
+            --shadow-pop: 0 12px 32px rgba(0, 0, 0, .55);
+            --go: #1d7a46;
+            --go-ink: #d9fbe7;
+            --stop: #3a1418;
+            --stop-ink: #ffb4bb;
+            --stop-line: #7a2a33;
+            --press-bg: #3c3022;
+            --glow-rgb: 241, 165, 68;
+            /* 收音中（语音按钮）用的红 */
+            --rec: #d95a52;
+            --rec-line: #e8776f;
+            color-scheme: dark;
+        }
+
+        html[data-theme="light"] {
+            --bg: #f1f4f8;
+            --card: #fcfdff;
+            --field: #f7f9fc;
+            --ink: #273548;
+            --ink-2: #65738a;
+            --muted: #8795a8;
+            --accent: #257ee9;
+            --accent-weak: #e3efff;
+            --stroke: #dce4ee;
+            --shadow-pop: 0 12px 32px rgba(30, 40, 60, .18);
+            --go: #177a41;
+            --go-ink: #ffffff;
+            --stop: #c62b3d;
+            --stop-ink: #ffffff;
+            --stop-line: #c62b3d;
+            --press-bg: #e3efff;
+            --glow-rgb: 52, 135, 241;
+            --rec: #e0605a;
+            --rec-line: #ee837d;
+            color-scheme: light;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        body {
+            min-height: 100dvh;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: -apple-system, "SF Pro Text", "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+            /* 顶部留白与触控板 / 设置页统一：状态栏高度 + 4px（无状态栏时保底 6px），
+               三页首行控件才会停在同一像素线上 */
+            padding: max(6px, calc(var(--satop, env(safe-area-inset-top, 0px)) + 4px)) 12px max(14px, var(--sabottom, env(safe-area-inset-bottom, 0px)));
+            user-select: none;
+        }
+
+        /* ---------- 顶栏 ---------- */
+        .top {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .back {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            height: 34px;
+            padding: 0 13px 0 9px;
+            border: 1px solid var(--stroke);
+            border-radius: 10px;
+            background: var(--card);
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .brand {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: .3px;
+        }
+
+        .brand small {
+            display: block;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--ink-2);
+            letter-spacing: 0;
+        }
+
+        /* ---------- 分组 ---------- */
+        .grp {
+            margin-bottom: 13px;
+        }
+
+        .grp-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--muted);
+            letter-spacing: 1.5px;
+            margin: 0 2px 7px;
+        }
+
+        .key {
+            border: 1px solid var(--stroke);
+            border-radius: 12px;
+            background: var(--card);
+            color: var(--ink);
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            min-height: 52px;
+            padding: 6px 4px;
+            transition: transform .1s, background .12s, color .12s, border-color .12s;
+        }
+
+        .key small {
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--ink-2);
+            line-height: 1.2;
+        }
+
+        .key.pressed,
+        .key:active {
+            background: var(--press-bg);
+            border-color: var(--accent);
+            color: var(--accent);
+            transform: scale(.97);
+        }
+
+        .key.pressed small,
+        .key:active small {
+            color: var(--accent);
+        }
+
+        /* AI 对话区：Enter / Esc 两个大键 */
+        .ai-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 9px;
+        }
+
+        .key.big {
+            min-height: 74px;
+            border-radius: 15px;
+            font-size: 17px;
+        }
+
+        .key.big span {
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .key.go {
+            background: var(--go);
+            border-color: var(--go);
+            color: var(--go-ink);
+        }
+
+        .key.go small,
+        .key.go span {
+            color: var(--go-ink);
+            opacity: .85;
+        }
+
+        .key.stop {
+            background: var(--stop);
+            border-color: var(--stop-line);
+            color: var(--stop-ink);
+        }
+
+        .key.stop small,
+        .key.stop span {
+            color: var(--stop-ink);
+            opacity: .85;
+        }
+
+        .triple {
+            margin-top: 9px;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 9px;
+        }
+
+        /* 导航区：左十字键 + 右翻页 */
+        .nav-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+            gap: 9px;
+            align-items: stretch;
+        }
+
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-rows: repeat(2, minmax(0, 1fr));
+            gap: 7px;
+        }
+
+        .dpad .key {
+            min-height: 52px;
+            font-size: 17px;
+        }
+
+        .dpad .up {
+            grid-column: 2;
+            grid-row: 1;
+        }
+
+        .dpad .left {
+            grid-column: 1;
+            grid-row: 2;
+        }
+
+        .dpad .down {
+            grid-column: 2;
+            grid-row: 2;
+        }
+
+        .dpad .right {
+            grid-column: 3;
+            grid-row: 2;
+        }
+
+        .nav-mid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 7px;
+        }
+
+        .nav-mid .key {
+            font-size: 12.5px;
+        }
+
+        /* 编辑 / 窗口：3 列矩阵 */
+        .matrix {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .matrix .key {
+            min-height: 48px;
+            font-size: 13px;
+        }
+
+        /* ---------- 语音输入：按住说话（识别跑在电脑上） ---------- */
+        .voice-btn {
+            width: 100%;
+            min-height: 74px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            border: 1px solid var(--accent);
+            border-radius: 14px;
+            background: var(--accent);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: .3px;
+            transition: transform .14s, filter .14s, background .14s, border-color .14s;
+        }
+
+        .voice-btn svg {
+            width: 26px;
+            height: 26px;
+        }
+
+        .voice-btn:active {
+            transform: scale(.985);
+            filter: brightness(.93);
+        }
+
+        /* 正在收音：变红 + 呼吸，手指按住时余光就能确认「在录」 */
+        .voice-btn.rec {
+            background: var(--rec);
+            border-color: var(--rec-line);
+            animation: cp-rec-breathe 1.3s ease-in-out infinite;
+        }
+
+        @keyframes cp-rec-breathe {
+
+            0%,
+            100% {
+                filter: brightness(1);
+            }
+
+            50% {
+                filter: brightness(1.12);
+            }
+        }
+
+        /* 语音浮层：按住说话时从底部升起，实时显示识别到的文字 */
+        #cp-voice-layer {
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            bottom: 12px;
+            z-index: 60;
+            max-height: 46vh;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+            padding: 14px 16px;
+            border: 1px solid var(--stroke);
+            border-radius: 18px;
+            background: var(--card);
+            box-shadow: var(--shadow-pop);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(12px);
+            transition: opacity .16s ease, transform .16s ease, visibility .16s;
+            overflow: hidden;
+        }
+
+        #cp-voice-layer.show {
+            opacity: 1;
+            visibility: visible;
+            transform: none;
+        }
+
+        .vl-head {
+            flex: none;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--ink-2);
+            letter-spacing: .2px;
+        }
+
+        /* 三根跳动的竖条：比转圈更像「在听声音」 */
+        .vl-bars {
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+            height: 13px;
+        }
+
+        .vl-bars i {
+            display: block;
+            width: 3px;
+            height: 100%;
+            border-radius: 2px;
+            background: var(--rec);
+            transform-origin: bottom;
+            animation: cp-vl-bounce 1s ease-in-out infinite;
+        }
+
+        .vl-bars i:nth-child(2) {
+            animation-delay: .15s;
+        }
+
+        .vl-bars i:nth-child(3) {
+            animation-delay: .3s;
+        }
+
+        @keyframes cp-vl-bounce {
+
+            0%,
+            100% {
+                transform: scaleY(.35);
+                opacity: .55;
+            }
+
+            50% {
+                transform: scaleY(1);
+                opacity: 1;
+            }
+        }
+
+        .vl-head.done .vl-bars i {
+            background: var(--accent);
+            animation-duration: 1.6s;
+        }
+
+        .vl-label {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .vl-text {
+            flex: 0 1 auto;
+            min-height: 0;
+            max-height: 100%;
+            overflow-y: auto;
+            font-size: 16px;
+            line-height: 1.5;
+            font-weight: 600;
+            color: var(--ink);
+            word-break: break-word;
+        }
+
+        .vl-text.placeholder {
+            font-size: 13.5px;
+            font-weight: 500;
+            line-height: 1.7;
+            color: var(--muted);
+        }
+
+        /* ---------- 连接状态 ---------- */
+        #cp-conn {
+            position: fixed;
+            left: 50%;
+            bottom: 14px;
+            transform: translateX(-50%);
+            z-index: 999;
+            padding: 7px 15px;
+            border-radius: 999px;
+            background: #d94a4a;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            box-shadow: var(--shadow-pop);
+            transition: opacity .18s, transform .18s;
+        }
+
+        #cp-conn.hide {
+            opacity: 0;
+            transform: translate(-50%, 8px);
+            pointer-events: none;
+        }
+
+        #cp-conn.cp-sleep {
+            background: var(--card);
+            color: var(--ink-2);
+            border: 1px solid var(--stroke);
+        }
+
+        /* ---------- 宏编辑弹层 ---------- */
+        .sheet-mask {
+            position: fixed;
+            inset: 0;
+            z-index: 90;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 22px;
+            background: rgba(0, 0, 0, .5);
+        }
+
+        .sheet-mask.show {
+            display: flex;
+        }
+
+        .sheet {
+            width: 100%;
+            max-width: 400px;
+            padding: 18px 16px 14px;
+            border: 1px solid var(--stroke);
+            border-radius: 16px;
+            background: var(--card);
+            box-shadow: var(--shadow-pop);
+        }
+
+        .sheet-title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .sheet-sub {
+            margin-top: 5px;
+            font-size: 12px;
+            color: var(--ink-2);
+        }
+
+        .sheet-input {
+            width: 100%;
+            margin-top: 14px;
+            padding: 0 12px;
+            height: 44px;
+            border: 1px solid var(--stroke);
+            border-radius: 11px;
+            background: var(--field);
+            color: var(--ink);
+            font-size: 15px;
+            outline: none;
+        }
+
+        .sheet-input:focus {
+            border-color: var(--accent);
+        }
+
+        .sheet-actions {
+            margin-top: 14px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .sheet-btn {
+            flex: 1;
+            height: 42px;
+            border: 1px solid var(--stroke);
+            border-radius: 11px;
+            background: transparent;
+            color: var(--ink);
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .sheet-btn.primary {
+            flex: 1.3;
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        .sheet-btn:active {
+            filter: brightness(.92);
+        }
+
+        /* toast */
+        .cp-toast {
+            position: fixed;
+            left: 50%;
+            bottom: 18%;
+            z-index: 95;
+            transform: translate(-50%, 8px);
+            padding: 9px 16px;
+            border: 1px solid var(--stroke);
+            border-radius: 999px;
+            background: var(--card);
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: var(--shadow-pop);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .18s, transform .18s;
+        }
+
+        .cp-toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+    </style>
+    <script>
+        // 主题在首绘前定下来，避免闪色；?theme=dark|light 是电脑端调试参数
+        // 顺序：调试参数 → App 原生偏好（设置页统一入口）→ localStorage → 跟随系统
+        (function () {
+            var q = new URLSearchParams(location.search).get('theme');
+            var t = (q === 'light' || q === 'dark') ? q : null;
+            if (!t) {
+                try {
+                    if (window.MovoNative && MovoNative.getPref) t = MovoNative.getPref('ui_theme');
+                } catch (e) { }
+            }
+            if (t !== 'light' && t !== 'dark') t = localStorage.getItem('movo_theme');
+            if (t === 'light' || t === 'dark') {
+                try { localStorage.setItem('movo_theme', t); } catch (e) { }
+            } else {
+                t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+            }
+            if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+        })();
+    </script>
+</head>
+
+<body>
+    <div id="cp-conn" class="hide" data-i18n="conn.offline">未连接 · 点此刷新</div>
+
+    <header class="top">
+        <button class="back" onclick="v(); location.replace('/touchpad')" aria-label="返回主页"
+            data-i18n-aria="common.backhome">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 18l-6-6 6-6" />
+            </svg>
+            <span data-i18n="common.back">返回</span>
+        </button>
+        <div class="brand"><span data-i18n="cp.brand">Code 遥控器</span><small data-i18n="cp.brand.sub">给 AI 编程助手当键盘</small></div>
+    </header>
+
+    <!-- AI 对话 -->
+    <section class="grp">
+        <div class="grp-title" data-i18n="cp.grp.chat">AI 对话</div>
+        <div class="ai-row">
+            <button class="key big go" data-tap="enter">⏎<span data-i18n="cp.send">发送 / 确认</span></button>
+            <button class="key big stop" data-tap="esc">ESC<span data-i18n="cp.stop">停止生成 / 关闭</span></button>
+        </div>
+        <div class="triple">
+            <button class="key" data-combo="ctrl,enter">Ctrl+⏎<small data-i18n="cp.ctrlenter">发送并保留</small></button>
+            <button class="key" data-tap="tab">Tab<small data-i18n="cp.tab">接受补全</small></button>
+            <button class="key" data-tap="backspace">⌫<small data-i18n="cp.bs">退格</small></button>
+        </div>
+    </section>
+
+    <!-- 导航 -->
+    <section class="grp">
+        <div class="grp-title" data-i18n="cp.grp.nav">导航（方向键可长按连发）</div>
+        <div class="nav-row">
+            <div class="dpad">
+                <button class="key up" data-tap="up" data-repeat="1">↑</button>
+                <button class="key left" data-tap="left" data-repeat="1">←</button>
+                <button class="key down" data-tap="down" data-repeat="1">↓</button>
+                <button class="key right" data-tap="right" data-repeat="1">→</button>
+            </div>
+            <div class="nav-mid">
+                <button class="key" data-tap="home">Home</button>
+                <button class="key" data-tap="end">End</button>
+                <button class="key" data-tap="page_up">PgUp</button>
+                <button class="key" data-tap="page_down">PgDn</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- 编辑 -->
+    <section class="grp">
+        <div class="grp-title" data-i18n="cp.grp.edit">编辑</div>
+        <div class="matrix">
+            <button class="key" data-combo="ctrl,s">Ctrl+S<small data-i18n="cp.save">保存</small></button>
+            <button class="key" data-combo="ctrl,z">Ctrl+Z<small data-i18n="cp.undo">撤销</small></button>
+            <button class="key" data-combo="ctrl,y">Ctrl+Y<small data-i18n="cp.redo">重做</small></button>
+            <button class="key" data-combo="ctrl,slash">Ctrl+/<small data-i18n="cp.comment">整行注释</small></button>
+            <button class="key" data-combo="ctrl,v">Ctrl+V<small data-i18n="cp.paste">粘贴</small></button>
+            <button class="key" data-combo="ctrl,f">Ctrl+F<small data-i18n="cp.find">查找</small></button>
+        </div>
+    </section>
+
+    <!-- 窗口 -->
+    <section class="grp">
+        <div class="grp-title" data-i18n="cp.grp.win">窗口与文件</div>
+        <div class="matrix">
+            <button class="key" data-combo="alt,tab">Alt+Tab<small data-i18n="cp.switch">切窗口</small></button>
+            <button class="key" data-combo="ctrl,tab">Ctrl+Tab<small data-i18n="cp.nexttab">切标签</small></button>
+            <button class="key" data-combo="ctrl,w">Ctrl+W<small data-i18n="cp.closetab">关标签</small></button>
+            <button class="key" data-combo="ctrl,p">Ctrl+P<small data-i18n="cp.gofile">搜文件</small></button>
+            <button class="key" data-combo="ctrl,backtick">Ctrl+`<small data-i18n="cp.panel">终端面板</small></button>
+            <button class="key" data-combo="shift,alt,f"><span data-i18n="cp.format">格式化</span><small>Shift+Alt+F</small></button>
+        </div>
+    </section>
+
+    <!-- 语音输入：按住说话，松手整段上屏（识别跑在电脑上） -->
+    <section class="grp" style="margin-bottom:0;">
+        <div class="grp-title" data-i18n="cp.grp.voice">语音输入（按住说话 · 松手整段上屏）</div>
+        <button class="voice-btn" id="cp-voice-btn" aria-label="按住说话" data-i18n-aria="pad.voice.aria"
+            title="按住说话" data-i18n-title="pad.voice.aria">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+                stroke-linejoin="round">
+                <rect x="9" y="3" width="6" height="12" rx="3" />
+                <path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8" />
+            </svg>
+            <span data-i18n="cp.voice.hold">按住说话</span>
+        </button>
+    </section>
+
+    <!-- 语音浮层：按住说话时出现，实时显示识别到的文字 -->
+    <div id="cp-voice-layer" aria-live="polite">
+        <div class="vl-head" id="cp-vl-head">
+            <span class="vl-bars"><i></i><i></i><i></i></span>
+            <span class="vl-label" id="cp-vl-label" data-i18n="pad.vl.listening">正在聆听…</span>
+        </div>
+        <div class="vl-text placeholder" id="cp-vl-text" data-i18n="pad.vl.ph">说完松手，整段文字会打到电脑光标处</div>
+    </div>
+
+    <div id="cp-toast" class="cp-toast"></div>
+
+    <script src="/static/js/socket.io.min.js"></script>
+    <script>if(!window.io){document.write('<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"><\/script>');}</script>
+    <script src="/static/js/link.js?v=20261028m"></script>
+    <script>
+        /* ---------- 连接：与触控板/键盘同一套 link.js 生命周期 ---------- */
+        const link = (window.AirLink ? AirLink.create(null, {
+            onState: (s) => {
+                const bar = document.getElementById('cp-conn');
+                if (!bar) return;
+                bar.onclick = null;
+                bar.classList.remove('hide', 'cp-sleep');
+                if (s === 'ok') { bar.classList.add('hide'); return; }
+                if (s === 'sleep') { bar.classList.add('cp-sleep'); bar.textContent = T('conn.sleep'); return; }
+                if (s === 'waking') { bar.textContent = T('conn.waking'); return; }
+                bar.textContent = T('conn.offline');
+                bar.onclick = () => location.reload();
+            }
+        }) : null);
+        const socket = link ? link.socket : io();
+
+        const v = () => { if (navigator.vibrate) navigator.vibrate(25); };
+        const toastEl = document.getElementById('cp-toast');
+        let toastTimer = null;
+        function toast(msg) {
+            if (!toastEl || !msg) return;
+            toastEl.textContent = msg;
+            toastEl.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1300);
+        }
+
+        /* ---------- 发送原语 ----------
+           单键走 tap_key（服务端 press→15ms→release，绝不卡键）；
+           组合走 key_combo（服务端成对按下/松开）；宏 = type_text + enter。 */
+        function sendTap(key) {
+            socket.emit('tap_key', { key: key });
+        }
+
+        function sendCombo(str) {
+            const keys = str.split(',').map(k => k.trim()).filter(Boolean);
+            if (keys.length) socket.emit('key_combo', { keys: keys });
+        }
+
+        /* ---------- 单键绑定；data-repeat="1" 支持长按连发（方向键） ---------- */
+        document.querySelectorAll('[data-tap]').forEach(btn => {
+            const key = btn.dataset.tap;
+            const repeat = btn.dataset.repeat === '1';
+            let t = null, iv = null;
+
+            const start = (e) => {
+                if (e) { e.stopPropagation(); if (e.cancelable) e.preventDefault(); }
+                btn.classList.add('pressed');
+                v();
+                sendTap(key);
+                if (repeat) {
+                    t = setTimeout(() => { iv = setInterval(() => sendTap(key), 110); }, 430);
+                }
+            };
+            const end = () => {
+                clearTimeout(t); clearInterval(iv); t = iv = null;
+                btn.classList.remove('pressed');
+            };
+
+            btn.addEventListener('pointerdown', start);
+            ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => btn.addEventListener(ev, end));
+        });
+
+        /* ---------- 组合键绑定 ---------- */
+        document.querySelectorAll('[data-combo]').forEach(btn => {
+            btn.addEventListener('pointerdown', (e) => {
+                if (e) { e.stopPropagation(); if (e.cancelable) e.preventDefault(); }
+                btn.classList.add('pressed');
+                v();
+                sendCombo(btn.dataset.combo);
+            });
+            ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev =>
+                btn.addEventListener(ev, () => btn.classList.remove('pressed')));
+        });
+
+        // 主题跟随：从别的页切回来时同步（pageshow 可能是缓存恢复）；
+        // ?theme= 参数优先（电脑端调试用），其次 localStorage
+        window.addEventListener('pageshow', () => {
+            const q = new URLSearchParams(location.search).get('theme');
+            const t = q || localStorage.getItem('movo_theme') || 'dark';
+            if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+            else document.documentElement.removeAttribute('data-theme');
+        });
+        /* ---------- 语音输入：按住说话，松手整段上屏（识别跑在电脑上） ----------
+           实现在 static/js/voice.js（与触控板页共用同一套）。Code 页没有输入框，
+           所以不做「轻点唤起键盘」，松手直接把整段文字 type_text 打到电脑光标处。 */
+        MovoVoice.attach({
+            socket: socket,
+            link: link,
+            t: T,
+            toast: toast,
+            haptic: v,
+            btnId: 'cp-voice-btn',
+            layerId: 'cp-voice-layer',
+            headId: 'cp-vl-head',
+            labelId: 'cp-vl-label',
+            textId: 'cp-vl-text',
+            aboveBtn: true     // 浮层挂在话筒按钮上方，手指按着也能看全（盖住内容没关系）
+        });
+
+        if (window.MovoLang) MovoLang.apply();
+    </script>
+</body>
+
+</html>

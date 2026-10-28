@@ -1,0 +1,2454 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+    <title data-i18n="app.title.pad">Movo | 触控板</title>
+    <link rel="icon" type="image/png" href="/static/touchpad.png">
+    <meta name="theme-color" content="#0a0b0e" id="theme-color">
+    <script>
+        // 在首次绘制之前就把主题定下来，否则会先闪一下另一个颜色
+        // 顺序：App 原生偏好（设置页统一入口）→ localStorage → 跟随系统
+        (function () {
+            var t = null;
+            try {
+                if (window.MovoNative && MovoNative.getPref) t = MovoNative.getPref('ui_theme');
+            } catch (e) { }
+            if (t !== 'light' && t !== 'dark') t = localStorage.getItem('movo_theme');
+            if (t === 'light' || t === 'dark') {
+                // 原生偏好和 localStorage 谁是源头都同步一份，三页保持一致
+                try { localStorage.setItem('movo_theme', t); } catch (e) { }
+            } else {
+                t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+            }
+            document.documentElement.setAttribute('data-theme', t);
+            var m = document.getElementById('theme-color');
+            if (m) m.setAttribute('content', t === 'light' ? '#f6f7fa' : '#0a0b0e');
+        })();
+    </script>
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/voice.js?v=20261028m"></script>
+    <style>
+        /* ============================================================
+           主题变量：默认夜间，html[data-theme="light"] 覆盖成日间
+           新增颜色一律走变量，别在下面写死色值
+           ============================================================ */
+        :root {
+            --bg: #0a0b0e;
+            --card: #14161b;
+            --field: #0f1116;
+            --ink: #e8eaf1;
+            --ink-2: #9aa2b4;
+            --muted: #6d7484;
+            --accent: #0A84FF;
+            --accent-weak: #12263d;
+            --rec: #ff453a;
+            --rec-weak: rgba(255, 69, 58, .16);
+            --veil: rgba(8, 10, 15, .70);
+            --stroke: #22252c;
+            --track: #1a1d24;
+            --thumb: #3b4250;
+            --shadow: 0 2px 10px rgba(0, 0, 0, .45);
+            --shadow-pop: 0 12px 32px rgba(0, 0, 0, .55);
+            color-scheme: dark;
+        }
+
+        html[data-theme="light"] {
+            --bg: #f6f7fa;
+            --card: #ffffff;
+            --field: #ffffff;
+            --ink: #42495a;
+            --ink-2: #5e6574;
+            --muted: #98a0b0;
+            --accent: #087bfa;
+            --accent-weak: #eaf2ff;
+            --rec: #e0393a;
+            --rec-weak: rgba(224, 57, 58, .12);
+            --veil: rgba(246, 247, 250, .80);
+            --stroke: #e7eaf0;
+            --track: #f0f3f9;
+            --thumb: #c0c7d4;
+            --shadow: 0 2px 10px rgba(57, 72, 104, .05);
+            --shadow-pop: 0 12px 32px rgba(105, 117, 139, .18);
+            color-scheme: light;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: none;
+            outline: none;
+        }
+
+        html,
+        body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--ink);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft Yahei", sans-serif;
+            height: calc(var(--vh, 1vh) * 100);
+        }
+
+        button,
+        input {
+            font: inherit;
+            color: inherit;
+        }
+
+        button {
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* ---------- 断线提示条：平时看不见，连接掉了才浮出来 ---------- */
+        #conn-bar {
+            position: fixed;
+            left: 50%;
+            top: calc(var(--satop, env(safe-area-inset-top, 0px)) + 6px);
+            transform: translateX(-50%);
+            z-index: 90;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 14px;
+            border-radius: 999px;
+            background: #d94a4a;
+            color: #fff;
+            font-size: 12.5px;
+            font-weight: 600;
+            letter-spacing: .1px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, .22);
+            transition: opacity .18s, transform .18s;
+        }
+
+        #conn-bar.hide {
+            opacity: 0;
+            transform: translate(-50%, -12px);
+            pointer-events: none;
+        }
+
+        /* 休眠：安静一点的灰条，不是出错，别用红色吓人 */
+        #conn-bar.cb-sleep {
+            background: var(--card);
+            color: var(--muted);
+            border: 1px solid var(--stroke);
+            box-shadow: var(--shadow);
+        }
+
+        #conn-bar.cb-sleep .cdot {
+            background: var(--muted);
+            animation: none;
+            opacity: .55;
+        }
+
+        /* 唤醒中：蓝条，转起来 */
+        #conn-bar.cb-waking {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        /* 休眠时触控板整体压暗一点：一眼就知道"现在点它不算数，先点醒"， */
+        /* 比单靠顶部一条小灰字直观得多。 */
+        .stage {
+            transition: opacity .25s ease;
+        }
+
+        body.is-sleep .stage {
+            opacity: .42;
+        }
+
+        #conn-bar .cdot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #fff;
+            animation: cblink .9s ease-in-out infinite;
+        }
+
+        @keyframes cblink {
+            50% {
+                opacity: .25;
+            }
+        }
+
+        /* ============================================================
+           整体骨架：顶栏 / 输入条 / 舞台（触控板或陀螺仪）/ 底部模式栏
+           ============================================================ */
+        .app {
+            height: calc(var(--vh, 1vh) * 100);
+            display: flex;
+            flex-direction: column;
+            gap: 11px;
+            /* 顶部不再整行避开摄像头挖孔：图标都在两侧，往上报 18px，
+               只保留少量安全距离，中间本来就留空给摄像头 */
+            padding: max(6px, calc(var(--satop, env(safe-area-inset-top, 0px)) - 18px)) 15px calc(var(--sabottom, env(safe-area-inset-bottom, 0px)) + 10px);
+        }
+
+        /* App 显示系统栏时（原生在 html 上注入 data-sysbars="on"）：
+           顶栏完整避开状态栏。全屏模式下没有这条，顶栏照旧上提到挖孔区两侧 */
+        html[data-sysbars="on"] .app {
+            padding-top: calc(var(--satop, env(safe-area-inset-top, 0px)) + 4px);
+        }
+
+        /* ---------- 顶栏：品牌 + 右侧工具按钮（不再是一整块卡片） ---------- */
+        .topbar {
+            flex: none;
+            display: flex;
+            align-items: center;
+            gap: 17px;
+            height: 44px;
+            min-height: 44px;
+            padding: 0 2px 0 3px;
+        }
+
+        .appname {
+            font-size: 20px;
+            font-weight: 750;
+            letter-spacing: -.7px;
+            color: var(--ink);
+            white-space: nowrap;
+            display: flex;
+            align-items: baseline;
+            gap: 7px;
+        }
+
+        .appname span {
+            color: var(--accent);
+            font-size: 11.5px;
+            font-weight: 600;
+            letter-spacing: 3px;
+        }
+
+        .toolbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            margin-left: auto;
+        }
+
+        .tool {
+            width: 42px;
+            height: 42px;
+            flex: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9px;
+            color: var(--ink-2);
+            transition: background .14s, color .14s;
+        }
+
+        .tool:active {
+            background: var(--accent-weak);
+            color: var(--accent);
+        }
+
+        .tool svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        /* ---------- 输入条：输入框 + 退格 + 回车 ---------- */
+        .inputline {
+            flex: none;
+            display: flex;
+            gap: 9px;
+            height: 50px;
+            min-height: 50px;
+        }
+
+        .inputbox {
+            min-width: 0;
+            flex: 1;
+            height: 100%;
+            border-radius: 15px;
+            border: 1px solid var(--stroke);
+            background: var(--card);
+            box-shadow: var(--shadow);
+            padding: 0 15px;
+            color: var(--ink);
+            font-size: 16px;
+            /* 全局禁了 user-select / touch-action，输入框必须单独放开 */
+            -webkit-user-select: text;
+            user-select: text;
+            touch-action: auto;
+            -webkit-touch-callout: default;
+            transition: border-color .16s, box-shadow .16s;
+        }
+
+        .inputbox::placeholder {
+            color: var(--muted);
+            font-size: 12.5px;
+        }
+
+        .inputbox:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-weak);
+        }
+
+        #qi-bar.sent .inputbox {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-weak);
+        }
+
+        .key {
+            width: 50px;
+            flex: none;
+            height: 100%;
+            border: 1px solid var(--stroke);
+            border-radius: 15px;
+            background: var(--card);
+            box-shadow: var(--shadow);
+            color: var(--ink-2);
+            display: grid;
+            place-items: center;
+            transition: background .12s, transform .12s;
+        }
+
+        .key svg {
+            width: 23px;
+            height: 23px;
+        }
+
+        .key:active {
+            background: var(--accent-weak);
+            color: var(--accent);
+            transform: scale(.96);
+        }
+
+        .key.enter {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .key.enter:active {
+            filter: brightness(.92);
+            color: #fff;
+        }
+
+        /* 退格键：整块淡红底 + 淡红描边 + 白色图标（和右侧发送键同一套逻辑：
+           实心底 + 白图形）。长按 = 清空输入框 */
+        .key.del {
+            border-color: var(--del-line);
+            background: var(--del-bg);
+            color: #fff;
+        }
+
+        .key.del:active,
+        .key.del.down {
+            background: var(--del-bg);
+            color: #fff;
+            filter: brightness(.92);
+            transform: scale(.96);
+        }
+
+        /* 长按清空时输入框红一下，给个「已经清掉了」的反馈 */
+        #qi-bar.cleared .inputbox {
+            border-color: var(--del-line);
+            box-shadow: 0 0 0 3px var(--del-weak);
+        }
+
+        /* ---------- 快捷控制：ESC / 电脑音量 / 媒体键（触控板与陀螺仪共用） ----------
+           扁平描边卡片，和输入条同宽；按下才亮，不抢触控板的注意力。
+           音量两键只有图标（喇叭本身就能说明加减）；媒体键单击开常用网站，
+           长按弹窗改网址。 */
+        .quickbar {
+            flex: none;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+            height: 48px;
+        }
+
+        .quick-key {
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            border: 1px solid var(--stroke);
+            border-radius: 11px;
+            background: var(--card);
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 600;
+            transition: background .12s, color .12s, transform .12s;
+        }
+
+        .quick-key svg {
+            width: 21px;
+            height: 21px;
+            flex: none;
+            stroke-width: 1.8;
+        }
+
+        .quick-key:active,
+        .quick-key.pressed {
+            background: var(--accent-weak);
+            border-color: var(--accent);
+            color: var(--accent);
+            transform: scale(.98);
+        }
+
+        /* ---------- 媒体键：网址编辑弹层 ---------- */
+        .sheet-mask {
+            position: fixed;
+            inset: 0;
+            z-index: 90;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 22px;
+            background: rgba(0, 0, 0, .5);
+        }
+
+        .sheet-mask.show {
+            display: flex;
+        }
+
+        .sheet {
+            width: 100%;
+            max-width: 400px;
+            padding: 18px 16px 14px;
+            border: 1px solid var(--stroke);
+            border-radius: 16px;
+            background: var(--card);
+            color: var(--ink);
+            box-shadow: var(--shadow-pop);
+        }
+
+        .sheet-title {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: .2px;
+        }
+
+        .sheet-sub {
+            margin-top: 5px;
+            font-size: 12px;
+            color: var(--ink-2);
+        }
+
+        .sheet-input {
+            width: 100%;
+            margin-top: 14px;
+            padding: 0 12px;
+            height: 44px;
+            border: 1px solid var(--stroke);
+            border-radius: 11px;
+            background: var(--field);
+            color: var(--ink);
+            font-size: 15px;
+            outline: none;
+        }
+
+        .sheet-input:focus {
+            border-color: var(--accent);
+        }
+
+        .sheet-actions {
+            margin-top: 14px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .sheet-btn {
+            flex: 1;
+            height: 42px;
+            border: 1px solid var(--stroke);
+            border-radius: 11px;
+            background: transparent;
+            color: var(--ink);
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .sheet-btn.primary {
+            flex: 1.3;
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        .sheet-btn:active {
+            filter: brightness(.92);
+        }
+
+        /* 轻提示：媒体键能不能打开、打开成没成功 */
+        .qk-toast {
+            position: fixed;
+            left: 50%;
+            bottom: 22%;
+            z-index: 95;
+            transform: translate(-50%, 8px);
+            padding: 9px 16px;
+            border: 1px solid var(--stroke);
+            border-radius: 999px;
+            background: var(--card);
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: var(--shadow-pop);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .18s, transform .18s;
+        }
+
+        .qk-toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+
+        /* ---------- 舞台 ---------- */
+        .stage {
+            flex: 1;
+            min-height: 0;
+            position: relative;
+        }
+
+        .pad-view,
+        .gyro-view {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            gap: 9px;
+        }
+
+        /* 触控板视图：滚轮不再单独占一列，改成浮在触控板上层的窄胶囊，
+           所以这里需要定位上下文（左手模式下胶囊换到左侧） */
+        .pad-view {
+            position: relative;
+        }
+
+        /* ---------- 触控板 ---------- */
+        .pad {
+            flex: 1;
+            min-width: 0;
+            position: relative;
+            border-radius: 21px;
+            background: var(--card);
+            border: 1px solid var(--stroke);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: background .12s, box-shadow .12s;
+        }
+
+        /* 长按拖拽 / 三指拖拽时的高亮（原来写死 #001a33，改成跟主题走） */
+        .pad.dragging {
+            background: var(--accent-weak);
+            box-shadow: inset 0 0 0 1.5px var(--accent), var(--shadow);
+        }
+
+        .pad-mark {
+            position: absolute;
+            left: 20px;
+            bottom: 18px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            color: var(--muted);
+            opacity: .5;
+            pointer-events: none;
+        }
+
+        /* 点按涟漪 */
+        .tapflash {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            background: var(--accent-weak);
+            border: 1px solid var(--accent);
+            opacity: .75;
+            pointer-events: none;
+            animation: tapflash .35s ease-out forwards;
+        }
+
+        @keyframes tapflash {
+            to {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1.6);
+            }
+        }
+
+        /* ---------- 右侧滚轮条（触控板 / 陀螺仪共用外观） ---------- */
+        .wheel {
+            width: 32px;
+            flex: none;
+            border-radius: 21px;
+            background: var(--card);
+            border: 1px solid var(--stroke);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 4px;
+            transition: background .12s;
+        }
+
+        .wheel.active {
+            background: var(--accent-weak);
+        }
+
+        .se-track {
+            flex: 1;
+            width: 100%;
+            min-height: 34px;
+            border-radius: 30px;
+            background: var(--track);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .thumb {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 6px;
+            height: clamp(42px, 16%, 110px);
+            border-radius: 9px;
+            background: var(--thumb);
+            transition: background .12s;
+        }
+
+        .wheel.active .thumb {
+            background: var(--accent);
+        }
+
+        /* 上下两端箭头：长按 = 连续滚动 */
+        .se-btn {
+            width: 100%;
+            height: 30px;
+            flex: none;
+            display: grid;
+            place-items: center;
+            border-radius: 9px;
+            color: var(--muted);
+            transition: background .12s, color .12s;
+        }
+
+        .se-btn svg {
+            width: 11px;
+            height: 11px;
+            fill: currentColor;
+        }
+
+        .se-btn.pressed {
+            background: var(--accent-weak);
+            color: var(--accent);
+        }
+
+        /* ============================================================
+           触控板里的悬浮滚轮：浮在触控板上层的窄条
+           版式同最初的一版——上箭头 / 中间竖条 / 下箭头，三段竖排；
+           平时几乎只是浅浅一条，按住才浮出磨砂底
+           ============================================================ */
+        .pad-view .wheel {
+            position: absolute;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%);
+            width: 34px;
+            height: 64%;
+            min-height: 168px;
+            max-height: 380px;
+            z-index: 6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 3px;
+            border-radius: 17px;
+            border: 1px solid transparent;
+            background: transparent;
+            box-shadow: none;
+            transition: background .16s, border-color .16s, box-shadow .16s;
+        }
+
+        /* 按住 / 拖动时整条浮出：磨砂底 + 琥珀描边，箭头同时亮起 */
+        .pad-view .wheel.active {
+            border-color: rgba(var(--glow-rgb), .45);
+            background: var(--float-bg);
+            backdrop-filter: blur(14px) saturate(1.15);
+            -webkit-backdrop-filter: blur(14px) saturate(1.15);
+            box-shadow: var(--float-shadow);
+        }
+
+        html[data-hand="left"] .pad-view .wheel {
+            right: auto;
+            left: 10px;
+        }
+
+        /* 中间轨道：夹在上下两个箭头之间，占满剩余高度 */
+        .pad-view .se-track {
+            flex: 1;
+            width: 100%;
+            min-height: 30px;
+            border-radius: 999px;
+            background: transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pad-view .wheel.active .se-track {
+            background: var(--float-track);
+        }
+
+        /* 竖条：撑满轨道整段，颜色极淡（上半 = 向上翻，下半 = 向下翻） */
+        .pad-view .thumb {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+            width: 7px;
+            height: 100%;
+            border-radius: 999px;
+            background: var(--float-thumb-idle);
+            transition: background .12s;
+        }
+
+        .pad-view .wheel.active .thumb {
+            background: var(--float-thumb-on);
+        }
+
+        /* 两端的方向箭头：各占一行（同最初的版式），只是提示，不接事件 */
+        .pad-view .w-arrow {
+            flex: none;
+            width: 100%;
+            height: 22px;
+            display: grid;
+            place-items: center;
+            color: var(--float-ink);
+            opacity: .55;
+            pointer-events: none;
+            transition: opacity .16s, color .16s;
+        }
+
+        .pad-view .w-arrow svg {
+            width: 10px;
+            height: 10px;
+            fill: currentColor;
+        }
+
+        .pad-view .wheel.active .w-arrow {
+            opacity: .95;
+            color: var(--float-arrow-on);
+        }
+
+        /* ---------- 陀螺仪视图：左键 | 滚轮 | 右键 ---------- */
+        .click-zone {
+            flex: 1;
+            min-width: 0;
+            border-radius: 21px;
+            background: var(--card);
+            border: 1px solid var(--stroke);
+            box-shadow: var(--shadow);
+            color: var(--ink-2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: background .12s, color .12s, border-color .12s, transform .12s;
+        }
+
+        .click-zone svg {
+            width: 34px;
+            height: 34px;
+        }
+
+        .click-zone span {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .click-zone.pressed {
+            background: var(--accent-weak);
+            border-color: var(--accent);
+            color: var(--accent);
+            transform: scale(.985);
+        }
+
+        /* ---------- 底部模式栏：触摸板 | 语音键盘（独立大圆钮）| 陀螺仪 ---------- */
+        .modebar {
+            flex: none;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 68px minmax(0, 1fr);
+            align-items: center;
+            gap: 8px;
+            height: 76px;
+            min-height: 76px;
+            padding: 7px 9px;
+            background: var(--card);
+            border: 1px solid var(--stroke);
+            border-radius: 17px;
+            box-shadow: var(--shadow);
+        }
+
+        .mode {
+            height: 100%;
+            min-width: 0;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 13px;
+            color: var(--ink-2);
+            background: transparent;
+            transition: background .15s, color .15s;
+        }
+
+        .mode svg {
+            width: 27px;
+            height: 27px;
+            flex: none;
+        }
+
+        .mode.selected {
+            background: var(--accent-weak);
+            color: var(--accent);
+        }
+
+        .mode:not(.selected):active {
+            background: var(--accent-weak);
+        }
+
+        .voice-button {
+            width: 62px;
+            height: 62px;
+            position: relative;
+            justify-self: center;
+            align-self: center;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #fff;
+            border: 3px solid var(--card);
+            box-shadow: 0 3px 13px rgba(10, 132, 255, .24);
+            display: grid;
+            place-items: center;
+            transition: transform .14s, filter .14s;
+        }
+
+        .voice-button svg {
+            width: 29px;
+            height: 29px;
+        }
+
+        .voice-button:active {
+            transform: scale(.94);
+            filter: brightness(.93);
+        }
+
+        /* 正在收音：变红 + 一圈往外扩的波纹，手指按住时余光就能确认「在录」 */
+        .voice-button.rec {
+            background: var(--rec);
+            box-shadow: 0 3px 16px rgba(255, 69, 58, .38);
+            transform: scale(.96);
+        }
+
+        .voice-button.rec::after {
+            content: "";
+            position: absolute;
+            inset: -3px;
+            border-radius: 50%;
+            border: 2px solid var(--rec);
+            animation: vb-ripple 1.5s ease-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes vb-ripple {
+            0% {
+                opacity: .55;
+                transform: scale(1);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(1.38);
+            }
+        }
+
+        /* ---------- 语音浮层：盖住触控板，实时显示识别到的文字 ----------
+           只在按住说话时出现。手指按在底部圆钮上，视线落在浮层中间，
+           文字从下往上长，说完松手就收起、整段打到电脑光标处。 */
+        #voice-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 40;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 10px;
+            /* 底部多留一截：文字整体往上抬，不贴着底部圆钮，手指不挡视线 */
+            padding: 16px 18px 96px;
+            border: 1px solid var(--stroke);
+            border-radius: 18px;
+            background: var(--veil);
+            -webkit-backdrop-filter: blur(10px) saturate(1.15);
+            backdrop-filter: blur(10px) saturate(1.15);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(8px);
+            transition: opacity .16s ease, transform .16s ease, visibility .16s;
+            overflow: hidden;
+        }
+
+        #voice-layer.show {
+            opacity: 1;
+            visibility: visible;
+            transform: none;
+        }
+
+        .vl-head {
+            flex: none;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--ink-2);
+            letter-spacing: .2px;
+        }
+
+        /* 三根跳动的竖条：比转圈更像「在听声音」 */
+        .vl-bars {
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+            height: 13px;
+        }
+
+        .vl-bars i {
+            display: block;
+            width: 3px;
+            height: 100%;
+            border-radius: 2px;
+            background: var(--rec);
+            transform-origin: bottom;
+            animation: vl-bounce 1s ease-in-out infinite;
+        }
+
+        .vl-bars i:nth-child(2) {
+            animation-delay: .15s;
+        }
+
+        .vl-bars i:nth-child(3) {
+            animation-delay: .3s;
+        }
+
+        @keyframes vl-bounce {
+
+            0%,
+            100% {
+                transform: scaleY(.35);
+                opacity: .55;
+            }
+
+            50% {
+                transform: scaleY(1);
+                opacity: 1;
+            }
+        }
+
+        .vl-head.done .vl-bars i {
+            background: var(--accent);
+            animation-duration: 1.6s;
+        }
+
+        .vl-label {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .vl-text {
+            flex: 0 1 auto;
+            min-height: 0;
+            max-height: 100%;
+            overflow-y: auto;
+            font-size: clamp(16px, 4.3vw, 20px);
+            line-height: 1.5;
+            font-weight: 600;
+            color: var(--ink);
+            word-break: break-word;
+            text-shadow: 0 1px 12px rgba(0, 0, 0, .18);
+        }
+
+        .vl-text.placeholder {
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1.7;
+            color: var(--muted);
+            text-shadow: none;
+        }
+
+        /* ---------- 设置入口（三个点） ---------- */
+        .menu-container {
+            position: relative;
+        }
+
+        /* ---------- 矮屏 / 横屏：整体压缩，不换布局 ---------- */
+        @media (max-height: 640px) {
+            .app {
+                gap: 8px;
+                padding-left: 9px;
+                padding-right: 9px;
+            }
+
+            .topbar {
+                height: 38px;
+                min-height: 38px;
+            }
+
+            .appname {
+                font-size: 17px;
+            }
+
+            .tool {
+                width: 38px;
+                height: 38px;
+            }
+
+            .toolbar-actions {
+                gap: 6px;
+            }
+
+            .inputline {
+                height: 44px;
+                min-height: 44px;
+            }
+
+            .key {
+                width: 46px;
+            }
+
+            .quickbar {
+                height: 40px;
+                gap: 7px;
+            }
+
+            .quick-key {
+                font-size: 12px;
+                gap: 5px;
+            }
+
+            .quick-key svg {
+                width: 17px;
+                height: 17px;
+            }
+
+            .modebar {
+                height: 66px;
+                min-height: 66px;
+                grid-template-columns: minmax(0, 1fr) 58px minmax(0, 1fr);
+                gap: 5px;
+                padding: 5px;
+            }
+
+            .voice-button {
+                width: 54px;
+                height: 54px;
+            }
+
+            .voice-button svg {
+                width: 25px;
+                height: 25px;
+            }
+
+            .mode {
+                font-size: 10.5px;
+                gap: 3px;
+            }
+
+            .mode svg {
+                width: 21px;
+                height: 21px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .appname {
+                font-size: 18px;
+            }
+
+            .toolbar-actions {
+                gap: 4px;
+            }
+
+            .tool {
+                width: 38px;
+            }
+        }
+
+        /* 改这个文件不用重启服务：web_app.py 里已开 TEMPLATES_AUTO_RELOAD */
+
+ /* ===== Movo visual refresh: soft light-blue / graphite amber ===== */
+        :root {
+            --bg:#1b2028; --card:#252b35; --field:#222832;
+            --ink:#f1f2f5; --ink-2:#adb5c2; --muted:#858f9c;
+            --accent:#f1a544; --accent-weak:#3c3022; --stroke:#38414d;
+            --track:#202630; --thumb:#697481;
+            --shadow:0 2px 9px rgba(0,0,0,.13);
+            --glow-rgb:241,165,68;
+            /* 退格键：整块淡红底 + 淡红描边 + 白图标（比纯红浅一档） */
+            --del-bg:#d95a52; --del-line:#e8776f; --del-weak:rgba(217,90,82,.30);
+            --pad-top:#2b323e; --pad-bottom:#202630;
+            --pad-inset:rgba(255,255,255,.045);
+            --grain-rgb:188,202,215; --grain-strength:.28;
+            /* 悬浮滚轮（浮在触控板上层的一条窄胶囊） */
+            --float-bg:rgba(255,255,255,.055);
+            --float-bg-on:rgba(241,165,68,.15);
+            --float-stroke:rgba(255,255,255,.085);
+            --float-inset:rgba(255,255,255,.07);
+            --float-shadow:0 8px 24px rgba(0,0,0,.26);
+            --float-track:rgba(255,255,255,.055);
+            --float-thumb-idle:rgba(255,255,255,.09);
+            --float-thumb-on:rgba(241,165,68,.50);
+            --float-arrow-on:var(--accent);
+            --float-ink:rgba(242,246,252,.66);
+        }
+        html[data-theme="light"] {
+            --bg:#f1f4f8; --card:#fcfdff; --field:#f7f9fc;
+            --ink:#273548; --ink-2:#65738a; --muted:#8795a8;
+            --accent:#257ee9; --accent-weak:#e3efff; --stroke:#dce4ee;
+            --track:#edf2f8; --thumb:#b0bdcc;
+            --shadow:0 2px 8px rgba(42,68,104,.045);
+            --glow-rgb:52,135,241;
+            --del-bg:#e0605a; --del-line:#ee837d; --del-weak:rgba(224,96,90,.26);
+            --pad-top:#f6f9ff; --pad-bottom:#e9f0f9;
+            --pad-inset:rgba(255,255,255,.7);
+            --grain-rgb:70,99,135; --grain-strength:.22;
+            --float-bg:rgba(255,255,255,.52);
+            --float-bg-on:rgba(37,126,233,.12);
+            --float-stroke:rgba(39,53,72,.09);
+            --float-inset:rgba(255,255,255,.9);
+            --float-shadow:0 8px 22px rgba(42,68,104,.13);
+            --float-track:rgba(39,53,72,.055);
+            --float-thumb-idle:rgba(39,53,72,.10);
+            --float-thumb-on:rgba(37,126,233,.45);
+            --float-arrow-on:var(--accent);
+            --float-ink:rgba(39,53,72,.5);
+        }
+        /* Movo 定制手写轮廓：内联矢量，不依赖网络字体和手机系统字库 */
+        .appname { gap:0; font-weight:initial; letter-spacing:normal; align-items:center; }
+        .movo-wordmark {
+            width:103px; height:40px; display:block;
+            color:var(--ink); overflow:visible;
+            transform:rotate(-3deg); transform-origin:center;
+        }
+        @media (max-width:360px), (max-height:640px) {
+            .movo-wordmark {width:91px; height:36px;}
+        }
+        .pad {
+            background:linear-gradient(155deg,var(--pad-top),var(--pad-bottom));
+            box-shadow: inset 0 1px 0 var(--pad-inset),var(--shadow);
+            isolation:isolate;
+        }
+        /* 稀疏微点阵：每 19px 一枚低对比度圆点，不叠加斜纹 */
+        .pad::before {
+            content:""; position:absolute; inset:0; pointer-events:none; z-index:0;
+            background-image: radial-gradient(circle, rgba(var(--grain-rgb), .32) .8px, transparent 1.1px);
+            background-size:19px 19px;
+            background-position:9px 9px;
+            opacity:.25;
+        }
+        .pad::after {
+            content:""; position:absolute; inset:0; pointer-events:none; z-index:1;
+            background:radial-gradient(circle 118px at var(--glow-x,50%) var(--glow-y,50%),
+                      rgba(var(--glow-rgb),.22),rgba(var(--glow-rgb),.055) 46%,transparent 75%);
+            opacity:var(--glow-opacity,0); transition:opacity .15s ease-out;
+        }
+        .pad.dragging { background:linear-gradient(155deg,var(--pad-top),var(--pad-bottom)); }
+        .pad-mark {display:none;}
+        .tapflash {z-index:3; background:rgba(var(--glow-rgb),.13); border-color:rgba(var(--glow-rgb),.42);}
+        .movo-ripple {
+            position:absolute; width:30px;height:30px;left:0;top:0;
+            transform:translate(-50%,-50%) scale(.45);border-radius:50%;
+            background:rgba(var(--glow-rgb),.12);
+            border:1.5px solid rgba(var(--glow-rgb),.55);
+            pointer-events:none;z-index:4;
+            animation:movo-ripple .38s ease-out forwards;
+        }
+        @keyframes movo-ripple {to {opacity:0;transform:translate(-50%,-50%) scale(3.1);}}
+@media (prefers-reduced-motion:reduce) {
+            .pad::after {transition:none;}
+            .movo-ripple {animation-duration:.01ms;}
+        }
+
+
+        /* 底部按截图还原：无底部整体卡片、图标和名称上下排列、中央独立大话筒 */
+        .modebar {
+            height:78px; min-height:78px;
+            padding:5px 0 0;
+            grid-template-columns:minmax(0,1fr) 76px minmax(0,1fr);
+            gap:8px;
+            background:transparent; border:0; border-radius:0; box-shadow:none;
+        }
+        .mode {
+            height:100%; display:flex; flex-direction:column;
+            align-items:center;justify-content:center;gap:6px;
+            border-radius:12px; background:transparent;
+            color:var(--ink-2);font-size:12px;font-weight:500;
+        }
+        .mode svg {width:25px;height:25px;}
+        .mode span {line-height:1;white-space:nowrap;}
+        .mode.selected {background:transparent;color:var(--accent);}
+        .mode:not(.selected):active {background:var(--accent-weak);}
+        .voice-button {
+            width:66px;height:66px;border:0;
+            background:var(--accent);color:#fff;
+            box-shadow:0 5px 14px rgba(var(--glow-rgb),.16);
+        }
+        .voice-button svg {width:29px;height:29px;}
+        @media (max-height:640px) {
+            .modebar {height:66px;min-height:66px;grid-template-columns:minmax(0,1fr) 62px minmax(0,1fr);padding:2px 0;gap:4px;}
+            .mode {font-size:11px;gap:3px;}
+            .mode svg {width:22px;height:22px;}
+            .voice-button {width:58px;height:58px;}
+        }
+
+        /* ===== 最终样式：底栏严格对齐参考图，不依赖旧样式覆盖顺序 ===== */
+        .app > footer.modebar {
+            display:grid !important;
+            grid-template-columns:1fr 84px 1fr !important;
+            align-items:center !important;
+            height:82px !important; min-height:82px !important;
+            padding:0 !important; margin:0 !important; gap:4px !important;
+            background:none !important; border:0 !important;
+            border-radius:0 !important; box-shadow:none !important;
+        }
+        .app > footer.modebar > .mode {
+            display:flex !important; flex-direction:column !important;
+            align-items:center !important; justify-content:center !important;
+            gap:6px !important; padding:4px 0 !important;
+            width:100% !important;height:100% !important;
+            background:transparent !important; border:0 !important; box-shadow:none !important;
+            color:var(--ink-2); border-radius:0 !important;
+        }
+        .app > footer.modebar > .mode.selected {color:var(--accent) !important;}
+        .app > footer.modebar > .mode svg {width:25px !important; height:25px !important;}
+        .app > footer.modebar > .mode span {display:block !important;font-size:12px !important;font-weight:500 !important;line-height:1.1 !important;}
+        .app > footer.modebar > #voice-btn {
+            width:66px !important;height:66px !important;
+            border-radius:50% !important;border:none !important;
+            justify-self:center;align-self:center;
+            background:var(--accent) !important;color:#fff !important;
+            box-shadow:0 5px 16px rgba(var(--glow-rgb),.18) !important;
+        }
+        .app > footer.modebar > #voice-btn svg {width:30px !important;height:30px !important;}
+        @media(max-height:640px){
+            .app > footer.modebar {height:66px !important;min-height:66px !important;grid-template-columns:1fr 66px 1fr !important;}
+            .app > footer.modebar > #voice-btn {width:56px !important;height:56px !important;}
+        }
+        /* 更明显的跟手光：触摸板独立层，不干扰点击事件 */
+        .pad {isolation:isolate;}
+        .pad::after {display:none !important;} /* 禁用上一版弱光，改为真实层 */
+        .movo-light-layer {
+            position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden;
+            --light-x:50%;--light-y:50%;
+        }
+        .movo-light-layer::before {
+            content:"";position:absolute;inset:0;
+            background:radial-gradient(circle 145px at var(--light-x) var(--light-y),
+               rgba(var(--glow-rgb),.43) 0%,
+               rgba(var(--glow-rgb),.22) 30%,
+               rgba(var(--glow-rgb),.07) 60%,transparent 80%);
+            opacity:0;transition:opacity .16s ease-out;
+        }
+        .movo-light-layer.visible::before {opacity:1;}
+        .movo-touch-ring {
+            position:absolute;width:38px;height:38px;border-radius:50%;
+            border:2px solid rgba(var(--glow-rgb),.88);
+            background:rgba(var(--glow-rgb),.18);
+            box-shadow:0 0 20px rgba(var(--glow-rgb),.2);
+            transform:translate(-50%,-50%) scale(.4);
+            animation:movo-ring-pop .46s cubic-bezier(.16,.7,.25,1) forwards;
+        }
+        @keyframes movo-ring-pop {
+            0% {opacity:1; transform:translate(-50%,-50%) scale(.4);}
+            100% {opacity:0; transform:translate(-50%,-50%) scale(3.1);}
+        }
+        /* 疏点阵稍微可见，但不形成颗粒噪声 */
+        .pad::before {background-size:24px 24px !important; opacity:.32 !important;}
+        @media(prefers-reduced-motion:reduce){.movo-touch-ring{animation-duration:.08s;}}
+    </style>
+</head>
+
+<body>
+    <!-- 连接断开时才出现；点一下立即整页刷新重连 -->
+    <div id="conn-bar" class="hide" onclick="onConnBarClick()">
+        <span class="cdot"></span><span class="cbar-text" data-i18n="conn.offline">未连接 · 点此刷新</span>
+    </div>
+    <div class="app" id="mouse-page" onclick="handleFirstInteraction(event)">
+
+        <!-- 顶栏 -->
+        <header class="topbar">
+            <div class="appname" aria-label="Movo">
+                <svg class="movo-wordmark" viewBox="0 0 128 46" role="img" aria-label="Movo" xmlns="http://www.w3.org/2000/svg">
+                    <g fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+                        <!-- 略有笔压变化的连笔字标，不依赖手机字体 -->
+                        <path d="M7 35 C9 28 11 17 16 10 C17 8 19 10 20 14 L26 31 Q28 35 31 28 L42 11 Q45 7 45 14 L43 34"/>
+                        <path d="M53 22 C49 28 50 35 56 36 C63 37 69 30 68 23 C67 17 61 16 57 20 C55 22 54 24 53 27"/>
+                        <path d="M73 21 Q75 29 78 35 Q80 38 84 32 Q89 25 92 19"/>
+                        <path d="M101 22 C96 28 97 35 103 36 C110 37 117 30 116 23 C115 17 109 16 105 20 C103 22 102 24 101 27"/>
+                    </g>
+                    <path d="M99 41 Q108 43 120 39" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" fill="none" opacity=".9"/>
+                </svg>
+            </div>
+            <nav class="toolbar-actions">
+                <button class="tool" title="键盘模式" data-i18n-title="pad.kb" aria-label="键盘模式" data-i18n-aria="pad.kb"
+                    onclick="v(); diag('nav /k'); location.replace('/k');">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2.4" y="5.8" width="19.2" height="12.4" rx="3.4" />
+                        <path d="M6.7 10.1h.01M10.2 10.1h.01M13.8 10.1h.01M17.3 10.1h.01" stroke-width="2.6" />
+                        <path d="M8.2 14.2h7.6" />
+                    </svg>
+                </button>
+                <button class="tool" title="Web Coding" aria-label="Web Coding"
+                    onclick="v(); diag('nav /controller'); location.replace('/controller');">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m8.5 8-4.2 4 4.2 4" />
+                        <path d="m15.5 8 4.2 4-4.2 4" />
+                        <path d="m13.2 5.5-2.4 13" />
+                    </svg>
+                </button>
+                <div class="menu-container">
+                    <button class="tool" title="设置" data-i18n-title="pad.settings" aria-label="设置" data-i18n-aria="pad.settings" onclick="v(); openSettings()">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="12" cy="5" r="1.8" />
+                            <circle cx="12" cy="12" r="1.8" />
+                            <circle cx="12" cy="19" r="1.8" />
+                        </svg>
+                    </button>
+                </div>
+            </nav>
+        </header>
+
+        <!-- 常驻文字输入条：点框直接打字/说话，停一下就自动发到电脑，回车立刻发 -->
+        <div class="inputline" id="qi-bar">
+            <input id="qi-text" class="inputbox" type="text" enterkeyhint="send" autocomplete="off"
+                autocapitalize="sentences" autocorrect="off" spellcheck="false"
+                placeholder="打字或语音，停一下就发" data-i18n-ph="pad.ph">
+            <button class="key del" id="qi-bs" title="退格（长按清空）" data-i18n-title="pad.bs" aria-label="退格，长按清空输入框" data-i18n-aria="pad.bs.aria">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M9 5H21v14H9L2 12l7-7Z" />
+                    <path d="m12 9 6 6m0-6-6 6" />
+                </svg>
+            </button>
+            <button class="key enter" id="qi-enter" title="发送" data-i18n-title="pad.send" aria-label="发送" data-i18n-aria="pad.send">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M12 20V5" />
+                    <path d="m5.5 11.5 6.5-6.5 6.5 6.5" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- 快捷控制：映射电脑的 ESC / 音量减 / 音量加（触控板与陀螺仪共用） -->
+        <div class="quickbar" role="group" aria-label="电脑快捷控制" data-i18n-aria="pad.quick.aria">
+            <button class="quick-key" type="button" data-shortcut="esc" aria-label="ESC 退出键" data-i18n-aria="pad.esc" data-i18n-title="pad.esc">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="3" />
+                    <path d="M8 10h8M8 14h5" />
+                </svg>
+                <span>ESC</span>
+            </button>
+            <button class="quick-key" type="button" data-shortcut="volume_down" aria-label="电脑音量减" title="音量减" data-i18n-title="pad.vol.down" data-i18n-aria="pad.vol.down">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                    <path d="M16 12h6" />
+                </svg>
+            </button>
+            <button class="quick-key" type="button" data-shortcut="volume_up" aria-label="电脑音量加" title="音量加" data-i18n-title="pad.vol.up" data-i18n-aria="pad.vol.up">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                    <path d="M19 9v6M16 12h6" />
+                </svg>
+            </button>
+            <!-- 媒体键：单击在电脑上打开常用网站，长按改网址 -->
+            <button class="quick-key" type="button" id="qk-media" aria-label="打开网站（长按编辑）" data-i18n-aria="pad.media.aria"
+                title="单击打开网站 · 长按编辑" data-i18n-title="pad.media.title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <rect x="2.6" y="4.4" width="18.8" height="15.2" rx="3" />
+                    <path d="M2.6 8.6h18.8" />
+                    <path d="M10.3 11.7 14.6 13.9 10.3 16.1Z" fill="currentColor" stroke="none" />
+                </svg>
+            </button>
+        </div>
+
+        <section class="stage">
+            <!-- 触控板视图 -->
+            <div id="pad-view" class="pad-view">
+                <div id="pad" class="pad">
+                    <div class="pad-mark">MOVO</div>
+                </div>
+
+                <!-- 悬浮滚轮：三段竖排——上箭头 | 中间竖条 | 下箭头（同最初的版式）。
+                     按上半 = 向上翻、按下半 = 向下翻，按住连续滚，手指拖动 = 跟手滚动。
+                     两端箭头只是方向提示，不接事件 -->
+                <div id="scroll-edge" class="wheel">
+                    <div class="w-arrow w-up" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12,7L4,16H20Z" />
+                        </svg>
+                    </div>
+                    <div class="se-track">
+                        <div class="thumb" id="scroll-thumb"></div>
+                    </div>
+                    <div class="w-arrow w-down" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12,17L4,8H20Z" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 陀螺仪视图：手机当空鼠，左右两块就是左右键 -->
+            <div id="gyro-view" class="gyro-view hidden">
+                <button class="click-zone" id="gz-left" aria-label="鼠标左键" data-i18n-aria="pad.gyro.left.aria">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                        <rect x="5" y="2" width="14" height="20" rx="7" />
+                        <path d="M12 2v9H5" />
+                        <path d="M5 11h14" />
+                    </svg>
+                    <span data-i18n="pad.gyro.left">左键</span>
+                </button>
+
+                <div id="gyro-wheel" class="wheel">
+                    <div class="se-btn" id="gw-up" title="长按连续上滚" data-i18n-title="pad.wheel.up">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12,7L4,16H20Z" />
+                        </svg>
+                    </div>
+                    <div class="se-track">
+                        <div class="thumb"></div>
+                    </div>
+                    <div class="se-btn" id="gw-down" title="长按连续下滚" data-i18n-title="pad.wheel.down">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12,17L4,8H20Z" />
+                        </svg>
+                    </div>
+                </div>
+
+                <button class="click-zone" id="gz-right" aria-label="鼠标右键" data-i18n-aria="pad.gyro.right.aria">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                        <rect x="5" y="2" width="14" height="20" rx="7" />
+                        <path d="M12 2v9h7" />
+                        <path d="M5 11h14" />
+                    </svg>
+                    <span data-i18n="pad.gyro.right">右键</span>
+                </button>
+            </div>
+
+            <!-- 语音浮层：按住底部圆钮说话时盖在整个舞台上，实时显示识别到的文字 -->
+            <div id="voice-layer" aria-live="polite">
+                <div class="vl-head" id="vl-head">
+                    <span class="vl-bars"><i></i><i></i><i></i></span>
+                    <span class="vl-label" id="vl-label" data-i18n="pad.vl.listening">正在聆听…</span>
+                </div>
+                <div class="vl-text placeholder" id="vl-text" data-i18n="pad.vl.ph">说完松手，整段文字会打到电脑光标处</div>
+            </div>
+        </section>
+
+    <!-- 底部模式栏：触摸板 | 中央独立的大麦克风（按住说话）| 陀螺仪（只留图标） -->
+    <footer class="modebar" role="group" aria-label="控制模式" data-i18n-aria="pad.modes">
+        <button class="mode selected" id="mode-pad" aria-label="触摸板模式" data-i18n-aria="pad.mode.pad" aria-pressed="true"
+            onclick="v(); setMode('pad')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                stroke-linejoin="round">
+                <rect x="3.5" y="3.6" width="17" height="16.8" rx="3.4" />
+                <path d="M3.5 16.4h17" />
+                <circle cx="12" cy="10" r="1.7" />
+            </svg>
+            <span data-i18n="pad.mode.pad">触摸板</span>
+        </button>
+
+        <button class="voice-button" id="voice-btn" aria-label="按住说话" data-i18n-aria="pad.voice.aria" title="按住说话（轻点唤起键盘）" data-i18n-title="pad.voice.title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+                stroke-linejoin="round">
+                <rect x="9" y="3" width="6" height="12" rx="3" />
+                <path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8" />
+            </svg>
+        </button>
+
+        <button class="mode" id="mode-gyro" aria-label="陀螺仪模式" data-i18n-aria="pad.mode.gyro" aria-pressed="false"
+            onclick="v(); setMode('gyro')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                stroke-linejoin="round">
+                <ellipse cx="12" cy="12" rx="8.8" ry="3.4" />
+                <ellipse cx="12" cy="12" rx="3.4" ry="8.8" />
+                <circle cx="12" cy="12" r="1.5" />
+            </svg>
+            <span data-i18n="pad.mode.gyro">陀螺仪</span>
+        </button>
+    </footer>
+    </div>
+
+    <!-- 媒体键：网址编辑（长按触控板上的媒体键弹出） -->
+    <div id="media-sheet" class="sheet-mask">
+        <div class="sheet">
+            <div class="sheet-title" data-i18n="pad.sheet.title">媒体键网址</div>
+            <div class="sheet-sub" data-i18n="pad.sheet.sub">单击媒体键在电脑上打开，长按可随时改</div>
+            <input id="media-input" class="sheet-input" type="url" inputmode="url" autocomplete="off"
+                autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://www.bilibili.com">
+            <div class="sheet-actions">
+                <button class="sheet-btn" type="button" onclick="resetMediaUrl()" data-i18n="pad.sheet.reset">恢复默认</button>
+                <button class="sheet-btn" type="button" onclick="closeMediaEditor()" data-i18n="common.cancel">取消</button>
+                <button class="sheet-btn primary" type="button" onclick="saveMediaUrl()" data-i18n="common.save">保存</button>
+            </div>
+        </div>
+    </div>
+    <div id="qk-toast" class="qk-toast"></div>
+
+    <script src="/static/js/socket.io.min.js"></script>
+    <script>if(!window.io){document.write('<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"><\/script>');}</script>
+    <script src="/static/js/link.js?v=20261028m"></script>
+    <script src="/static/js/touchpad.js?v=20261028m"></script>
+    <script>
+        /* ---------- 连接：闲置 61 秒主动休眠，碰一下屏幕立刻唤醒 -----------------
+           不再追求「永远在线」。手机切后台/锁屏时 WebView 会冻结 JS 定时器，任何
+           「探测假连接」的方案都会失效；与其挂一根看不见的死连接，不如不看的时候就
+           干脆不连。断连从此是可预期的，不是故障。逻辑见 static/js/link.js。 */
+        let touchpadRef = null;   // 唤醒时要静音它一下，见 onWake
+
+        const link = AirLink.create({
+            // 传输顺序保持默认的 polling → websocket 升级：
+            // WebView 里 wss 会被自签名证书拦掉，所以必须先用 polling 连上，
+            // 写成 ['websocket','polling'] 反而会卡在握手失败上（不回退）。
+            reconnection: true,
+            reconnectionDelay: 400,
+            reconnectionDelayMax: 2000,
+            timeout: 8000
+        }, {
+            onState: (s) => connUI(s),
+            onSleep: () => {
+                // 休眠前先把可能按住的键松开，否则电脑上会卡住一个左键/中键
+                try { socket.emit('drag_end'); socket.emit('mid_up'); } catch (e) { }
+            },
+            onWake: () => {
+                haptic('tap');   // 抖一下 = “叫醒了”
+                // 唤醒的这一下点击别当成鼠标操作：静音 500ms
+                try { touchpadRef && touchpadRef.reset(500); } catch (e) { }
+            }
+        });
+
+        // 中英文词表：脚本在 head 里已加载，这里仍然延迟到调用时再查，避免加载顺序问题
+        function T(k, a, b) {
+            return (window.MovoLang && MovoLang.t) ? MovoLang.t(k, a, b) : k;
+        }
+
+        const socket = link.socket;
+
+        let connState = 'ok';
+
+        function connUI(state) {
+            connState = state;
+            document.body.classList.toggle('is-sleep', state === 'sleep');
+            const bar = document.getElementById('conn-bar');
+            if (!bar) return;
+            const txt = bar.querySelector('.cbar-text');
+            bar.classList.remove('hide', 'cb-sleep', 'cb-waking');
+            switch (state) {
+                case 'ok':
+                    bar.classList.add('hide');
+                    return;
+                case 'sleep':
+                    bar.classList.add('cb-sleep');
+                    if (txt) txt.textContent = T('conn.sleep');
+                    break;
+                case 'waking':
+                    bar.classList.add('cb-waking');
+                    if (txt) txt.textContent = T('conn.waking');
+                    break;
+                default:   // down
+                    if (txt) txt.textContent = T('conn.offline');
+            }
+        }
+
+        /* 只有真出错（红条）才允许点它刷新；休眠/唤醒中点了没反应，
+           否则「点一下唤醒」会顺带把整页刷掉。 */
+        function onConnBarClick() {
+            if (connState === 'down') location.reload();
+        }
+
+        /* 页面重新可见时，如果之前一直点不动（老用户可能停在别的页签），
+           靠 link 的 visibilitychange 处理；这里只管 UI 同步 */
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'visible') return;
+            connUI(link.isSleeping() ? 'sleep' : (link.isConnected() ? 'ok' : 'down'));
+        });
+
+        /* ---------- 日间 / 夜间模式 ---------- */
+        function applyTheme(t) {
+            document.documentElement.setAttribute('data-theme', t);
+            const m = document.getElementById('theme-color');
+            if (m) m.setAttribute('content', t === 'light' ? '#f6f7fa' : '#0a0b0e');
+        }
+
+        function toggleTheme() {
+            const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+            const next = cur === 'light' ? 'dark' : 'light';
+            localStorage.setItem('movo_theme', next);
+            // 同步给 App 原生偏好，设置页（APK 内置）跟着一起换肤
+            try {
+                if (window.MovoNative && MovoNative.setPref) MovoNative.setPref('ui_theme', next);
+            } catch (e) { }
+            applyTheme(next);
+        }
+
+        applyTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+
+        /* ---------- 触感：走原生 HapticFeedbackConstants -------------------
+           下面这些等级是在手机上用 /static/haptic-lab.html 一个个试出来的（2026-10-27 定）：
+             单击左键 = VIRTUAL_KEY   —— 短、标准，不吵
+             双击     = VIRTUAL_KEY ×2（间隔 90ms）
+             长按     = CONFIRM       —— 比左键重一点
+             双指右键 = LONG_PRESS    —— 两段渐强，和左键明显区分
+             滚动     = VIRTUAL_KEY   —— 跟着滚动节奏走，45ms 节流
+           以后改手感只动这张表，别在别处写死。 */
+        const HAPTIC = {
+            tap: { seq: ['VIRTUAL_KEY'], gap: 0 },
+            double: { seq: ['VIRTUAL_KEY', 'VIRTUAL_KEY'], gap: 90 },
+            long: { seq: ['CONFIRM'], gap: 0 },
+            right: { seq: ['LONG_PRESS'], gap: 0 },
+            scroll: { seq: ['VIRTUAL_KEY'], gap: 0 }
+        };
+        // 同类震动的最小间隔：滚动/点击太密会变成"嗡嗡"，必须节流
+        const HAPTIC_MIN_GAP = { tap: 30, double: 60, long: 200, right: 120, scroll: 45 };
+        const hbLast = {};
+        const nativeHaptic = (window.MovoNative && window.MovoNative.hapticConst)
+            ? window.MovoNative.hapticConst.bind(window.MovoNative)
+            : null;
+
+        function haptic(kind) {
+            const spec = HAPTIC[kind] || HAPTIC.tap;
+            const now = Date.now();
+            if (now - (hbLast[kind] || 0) < (HAPTIC_MIN_GAP[kind] || 30)) return;
+            hbLast[kind] = now;
+            if (nativeHaptic) {
+                spec.seq.forEach((name, i) => {
+                    if (i === 0) nativeHaptic(name, false);
+                    else setTimeout(() => nativeHaptic(name, false), spec.gap * i);
+                });
+            } else if (navigator.vibrate) {
+                navigator.vibrate(kind === 'scroll' ? 8 : 25);
+            }
+        }
+        window.haptic = haptic;
+
+        // 统一反馈：只震动，不出声（2026-10-28 用户要求去掉所有按键音）
+        const feedback = (kind) => {
+            haptic(kind || 'tap');
+        };
+
+        const v = feedback; // 兼容旧代码引用
+
+        /* 诊断上报：把页面里发生的事写到电脑上的 _diag.log（排查时序问题用） */
+        window.diag = function (msg) {
+            try { socket.emit('__diag', String(msg)); } catch (e) { }
+        };
+
+        /* ---------- 模式切换：触摸板 / 陀螺仪 ---------- */
+        let mode = 'pad';
+        let isGyroActive = false;
+        let gyroPermAsked = false;
+
+        function setMode(m, silent) {
+            if (m !== 'pad' && m !== 'gyro') m = 'pad';
+            if (m === mode && silent !== 'force') {
+                // 已经在这个模式，点一下只给个反馈
+                if (!silent) haptic('tap');
+                return;
+            }
+            mode = m;
+            const isPad = m === 'pad';
+
+            document.getElementById('pad-view').classList.toggle('hidden', !isPad);
+            document.getElementById('gyro-view').classList.toggle('hidden', isPad);
+
+            const padBtn = document.getElementById('mode-pad');
+            const gyroBtn = document.getElementById('mode-gyro');
+            padBtn.classList.toggle('selected', isPad);
+            gyroBtn.classList.toggle('selected', !isPad);
+            padBtn.setAttribute('aria-pressed', String(isPad));
+            gyroBtn.setAttribute('aria-pressed', String(!isPad));
+
+            localStorage.setItem('movo_mode', m);
+
+            if (!silent) haptic('tap');
+
+            if (isPad) stopGyro();
+            else startGyro();
+
+            // 模式切换会让一个视图隐藏、另一个露出，手势状态一并归零
+            if (window.touchpad) window.touchpad.reset(false);
+        }
+        window.setMode = setMode;
+
+        function startGyro() {
+            if (isGyroActive) return;
+            const begin = () => {
+                isGyroActive = true;
+                window.addEventListener('devicemotion', handleGyro);
+            };
+            if (typeof DeviceMotionEvent !== 'undefined' &&
+                typeof DeviceMotionEvent.requestPermission === 'function' && !gyroPermAsked) {
+                gyroPermAsked = true;
+                DeviceMotionEvent.requestPermission().then(res => {
+                    if (res === 'granted') begin();
+                }).catch(() => { });
+            } else {
+                begin();
+            }
+        }
+
+        function stopGyro() {
+            if (!isGyroActive) return;
+            isGyroActive = false;
+            window.removeEventListener('devicemotion', handleGyro);
+        }
+
+        /* ---------- 灵敏度：滑块在「设置」页，这里只读取 ----------
+           App 侧存在 SharedPreferences（跟设置页同一份），浏览器侧退回 localStorage。 */
+        function nativeGetPref(k) {
+            try {
+                if (window.MovoNative && window.MovoNative.getPref) {
+                    return window.MovoNative.getPref(k);
+                }
+            } catch (e) { }
+            return null;
+        }
+        function nativeSetPref(k, val) {
+            try {
+                if (window.MovoNative && window.MovoNative.setPref) {
+                    window.MovoNative.setPref(k, String(val));
+                }
+            } catch (e) { }
+            localStorage.setItem(k, val);
+        }
+
+        let sensitivity = parseFloat(nativeGetPref('mouse_sense') || localStorage.getItem('mouse_sense')) || 4.0;
+        let gyroSensitivity = parseFloat(nativeGetPref('gyro_sense') || localStorage.getItem('gyro_sense')) || 0.6;
+        // 从设置页改完返回时，页面可能是从缓存恢复的，重新拉一次
+        window.addEventListener('pageshow', () => {
+            const s = parseFloat(nativeGetPref('mouse_sense'));
+            const g = parseFloat(nativeGetPref('gyro_sense'));
+            if (!isNaN(s) && s > 0) sensitivity = s;
+            if (!isNaN(g) && g > 0) gyroSensitivity = g;
+        });
+
+        /* ---------- 左手 / 右手模式：滚轮条放哪边 ----------
+           App 里在设置页切换（pref: hand_mode），这里只负责应用：
+           加载时读一次，从设置页返回（pageshow 可能是缓存恢复）再读一次。
+           ?hand=left|right 只是电脑上调试截图用，App 不会带这个参数。 */
+        function applyHand() {
+            const q = new URLSearchParams(location.search).get('hand');
+            let h = (q === 'left' || q === 'right') ? q :
+                (nativeGetPref('hand_mode') || localStorage.getItem('hand_mode') || 'right');
+            document.documentElement.setAttribute('data-hand', h === 'left' ? 'left' : 'right');
+        }
+        applyHand();
+        window.addEventListener('pageshow', applyHand);
+
+        function openSettings() {
+            try {
+                if (window.MovoNative && window.MovoNative.openSettings) {
+                    window.MovoNative.openSettings();
+                    return;
+                }
+            } catch (e) { }
+            // 浏览器里没有设置页：三点按钮退化为切主题（主题统一入口在 App 的设置页）
+            toggleTheme();
+        }
+        window.openSettings = openSettings;
+
+        function handleGyro(e) {
+            const rot = e.rotationRate; if (!rot) return;
+            let rx = -rot.gamma * gyroSensitivity;
+            let ry = -rot.alpha * gyroSensitivity;
+
+            // 微小动作滤除 (防手抖死区)
+            const deadzone = 0.25;
+            let dx = Math.abs(rx) < deadzone ? 0 : (rx - Math.sign(rx) * deadzone);
+            let dy = Math.abs(ry) < deadzone ? 0 : (ry - Math.sign(ry) * deadzone);
+
+            if ((dx !== 0 || dy !== 0) && !touchpad.isLocked()) {
+                socket.emit('move', { dx, dy });
+            }
+        }
+
+        /* ---------- 主题切换（网页端备用；App 里统一在设置页切） ---------- */
+
+        /* ---------- 滚动：滚轮条 / 长按箭头 ---------- */
+        let scrollTimer = null;
+        function startScroll(step) {
+            if (scrollTimer) clearInterval(scrollTimer);
+            socket.emit('scroll', { dy: step });
+            scrollTimer = setInterval(() => {
+                socket.emit('scroll', { dy: step });
+                haptic('scroll');
+            }, 60);
+        }
+        function stopScroll() { if (scrollTimer) { clearInterval(scrollTimer); scrollTimer = null; } }
+
+        let vhTimer = null;
+        function resetHeight() {
+            const vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty('--vh', `${vh}px`);
+        }
+        window.addEventListener('resize', () => {
+            clearTimeout(vhTimer);
+            vhTimer = setTimeout(resetHeight, 120);
+        });
+        resetHeight();
+
+        // 首次交互钩子：原来只是为了解锁 AudioContext，按键音去掉后没有别的事要做
+        function handleFirstInteraction(e) {
+            if (e && e.target && e.target.closest && e.target.closest('#qi-bar')) return;
+        }
+
+        /* ---------- 触控板 ---------- */
+        const touchpad = new TouchpadModule('pad', socket, {
+            getSensitivity: () => sensitivity,
+            feedback: feedback
+        });
+        window.touchpad = touchpad;
+
+        /* Movo 光效: capture 监听 touch 事件，兼容 TouchpadModule 内部 preventDefault。
+           纯视觉实现，不拦截事件、不阻止冒泡、不修改 Socket.IO 数据。 */
+        (function initMovoTouchLight(){
+            const padEl = document.getElementById('pad');
+            if (!padEl) return;
+            const layer = document.createElement('div');
+            layer.className = 'movo-light-layer';
+            layer.setAttribute('aria-hidden', 'true');
+            padEl.appendChild(layer);
+            let active = false;
+            let hideTimer = null;
+            let lastX = 0, lastY = 0;
+            let touchedAt = 0;
+            let startX = 0, startY = 0;
+            let moved = false;
+            let pending = 0;
+            function moveLight(x,y) {
+                const r = padEl.getBoundingClientRect();
+                lastX=Math.max(0,Math.min(r.width,x-r.left));
+                lastY=Math.max(0,Math.min(r.height,y-r.top));
+                if (pending) return;
+                pending=requestAnimationFrame(()=>{
+                    pending=0;
+                    layer.style.setProperty('--light-x',lastX+'px');
+                    layer.style.setProperty('--light-y',lastY+'px');
+                });
+            }
+            function begin(x,y){
+                clearTimeout(hideTimer);
+                active=true;moved=false;startX=x;startY=y;touchedAt=performance.now();
+                moveLight(x,y);layer.classList.add('visible');
+            }
+            function ripple(x,y){
+                const r=padEl.getBoundingClientRect();
+                const dot=document.createElement('span');
+                dot.className='movo-touch-ring';
+                dot.style.left=(x-r.left)+'px';dot.style.top=(y-r.top)+'px';
+                layer.appendChild(dot);
+                dot.addEventListener('animationend',()=>dot.remove(),{once:true});
+            }
+            function end(x,y){
+                if(!active)return;
+                if(!moved && performance.now()-touchedAt < 400) ripple(x,y);
+                active=false;
+                hideTimer=setTimeout(()=>layer.classList.remove('visible'),130);
+            }
+            padEl.addEventListener('touchstart',e=>{
+                if(e.touches.length!==1){active=false;layer.classList.remove('visible');return;}
+                const t=e.touches[0];begin(t.clientX,t.clientY);
+            },{capture:true,passive:true});
+            padEl.addEventListener('touchmove',e=>{
+                if(!active || e.touches.length!==1)return;
+                const t=e.touches[0];
+                if(Math.hypot(t.clientX-startX,t.clientY-startY)>9)moved=true;
+                moveLight(t.clientX,t.clientY);
+            },{capture:true,passive:true});
+            padEl.addEventListener('touchend',e=>{
+                const t=e.changedTouches[0];if(t)end(t.clientX,t.clientY);
+            },{capture:true,passive:true});
+            padEl.addEventListener('touchcancel',()=>{active=false;layer.classList.remove('visible');},{capture:true,passive:true});
+            padEl.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button===0)begin(e.clientX,e.clientY);},{capture:true,passive:true});
+            padEl.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'&&active){if(Math.hypot(e.clientX-startX,e.clientY-startY)>9)moved=true;moveLight(e.clientX,e.clientY);}},{capture:true,passive:true});
+            window.addEventListener('pointerup',e=>{if(e.pointerType==='mouse')end(e.clientX,e.clientY);},{capture:true,passive:true});
+            window.addEventListener('blur',()=>{active=false;layer.classList.remove('visible');});
+        })();
+        touchpadRef = touchpad;   // 唤醒时要静音一下，避免"叫醒"那一下被当成点击
+
+        /* 切 App / 换页返回 / 从缓存恢复时，把手势状态清零。
+           否则上一次没收到 touchend 的手势会残留，回来第一下点按可能变成右键。 */
+        window.addEventListener('pageshow', (e) => {
+            touchpad.reset(!e.persisted);   // 正常首屏加载不用静默，只有缓存恢复才静默
+        });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') touchpad.reset();
+        });
+
+        /* ---------- 滚轮条：跟手滚动（条身）+ 长按连续滚动（箭头） ---------- */
+        function bindStrip(el, activeEl) {
+            const pad = activeEl || el;
+            let on = false, lastY = 0, acc = 0;
+            const STEP = 12;   // 每 12px 滚一格，数值越小越快
+
+            const start = (e) => {
+                e.stopPropagation();
+                if (e.cancelable) e.preventDefault();
+                if (document.activeElement === qiText) qiText.blur();
+                on = true; acc = 0;
+                lastY = (e.touches ? e.touches[0].clientY : e.clientY);
+                pad.classList.add('active');
+                v();
+            };
+            const move = (e) => {
+                if (!on) return;
+                e.stopPropagation();
+                if (e.cancelable) e.preventDefault();
+                const y = (e.touches ? e.touches[0].clientY : e.clientY);
+                acc += y - lastY;
+                lastY = y;
+                let n = 0;
+                while (acc >= STEP) { n++; acc -= STEP; }
+                while (acc <= -STEP) { n--; acc += STEP; }
+                if (n) { socket.emit('scroll', { dy: n }); haptic('scroll'); }
+            };
+            const end = (e) => {
+                if (e && e.stopPropagation) e.stopPropagation();
+                on = false; acc = 0;
+                pad.classList.remove('active');
+            };
+
+            el.addEventListener('touchstart', start, { passive: false });
+            el.addEventListener('touchmove', move, { passive: false });
+            el.addEventListener('touchend', end);
+            el.addEventListener('touchcancel', end);
+            el.addEventListener('mousedown', start);
+            window.addEventListener('mouseup', end);
+        }
+
+        /* 悬浮滚轮：白条撑满整条控件，所以没有单独的箭头按钮了——
+           按在白条上半 = 向上翻，按在下半 = 向下翻；按住不停就连续滚。
+           手指一移动就切成「跟手拖动」，跟原来条身滑动的体验一致。 */
+        function bindWheel(el) {
+            if (!el) return;
+            const track = el.querySelector('.se-track');
+            const STEP = 12;      // 拖动时每 12px 滚一格
+            const HOLD_MS = 60;   // 按住连滚的节奏
+            const DRAG_MIN = 10;  // 移动超过这个距离就认定是拖动，不再连滚
+            let on = false, holding = false;
+            let lastY = 0, startY = 0, acc = 0, timer = null;
+
+            const stopHold = () => {
+                if (timer) { clearInterval(timer); timer = null; }
+                holding = false;
+            };
+
+            const start = (e) => {
+                e.stopPropagation();
+                if (e.cancelable) e.preventDefault();
+                if (document.activeElement === qiText) qiText.blur();
+                const y = (e.touches ? e.touches[0].clientY : e.clientY);
+                on = true; lastY = y; startY = y; acc = 0;
+                el.classList.add('active');
+                v();
+                const r = track.getBoundingClientRect();
+                // 上半 → 向上滚（dy 正），下半 → 向下滚
+                const step = y < r.top + r.height / 2 ? 2 : -2;
+                holding = true;
+                socket.emit('scroll', { dy: step });
+                haptic('scroll');
+                timer = setInterval(() => {
+                    socket.emit('scroll', { dy: step });
+                    haptic('scroll');
+                }, HOLD_MS);
+            };
+
+            const move = (e) => {
+                if (!on) return;
+                e.stopPropagation();
+                if (e.cancelable) e.preventDefault();
+                const y = (e.touches ? e.touches[0].clientY : e.clientY);
+                if (holding && Math.abs(y - startY) > DRAG_MIN) stopHold();
+                if (!holding) {
+                    acc += y - lastY;
+                    let n = 0;
+                    while (acc >= STEP) { n++; acc -= STEP; }
+                    while (acc <= -STEP) { n--; acc += STEP; }
+                    if (n) { socket.emit('scroll', { dy: n }); haptic('scroll'); }
+                }
+                lastY = y;
+            };
+
+            const end = (e) => {
+                if (e && e.stopPropagation) e.stopPropagation();
+                on = false; acc = 0; stopHold();
+                el.classList.remove('active');
+            };
+
+            el.addEventListener('touchstart', start, { passive: false });
+            el.addEventListener('touchmove', move, { passive: false });
+            el.addEventListener('touchend', end);
+            el.addEventListener('touchcancel', end);
+            el.addEventListener('mousedown', start);
+            window.addEventListener('mouseup', end);
+        }
+
+        function bindHoldScroll(el, step) {
+            if (!el) return;
+            const press = (e) => {
+                if (e) { e.stopPropagation(); if (e.cancelable) e.preventDefault(); }
+                el.classList.add('pressed');
+                haptic('scroll');
+                startScroll(step);
+            };
+            const release = (e) => {
+                if (e && e.stopPropagation) e.stopPropagation();
+                el.classList.remove('pressed');
+                stopScroll();
+            };
+            el.addEventListener('touchstart', press, { passive: false });
+            el.addEventListener('touchmove', (e) => e.stopPropagation(), { passive: false });
+            el.addEventListener('touchend', release);
+            el.addEventListener('touchcancel', release);
+            el.addEventListener('mousedown', press);
+            window.addEventListener('mouseup', release);
+        }
+
+        const seEl = document.getElementById('scroll-edge');
+        bindWheel(seEl);
+
+        /* 陀螺仪视图里的滚轮也要能滚（条身 + 箭头） */
+        const gwEl = document.getElementById('gyro-wheel');
+        bindStrip(gwEl, gwEl);
+        bindHoldScroll(document.getElementById('gw-up'), 2);
+        bindHoldScroll(document.getElementById('gw-down'), -2);
+
+        /* ---------- 陀螺仪视图的左右键 ---------- */
+        function bindClickZone(el, button, hapticKind) {
+            if (!el) return;
+            const press = (e) => {
+                if (e) { e.stopPropagation(); if (e.cancelable) e.preventDefault(); }
+                el.classList.add('pressed');
+                if (window.diag) window.diag('[gyro] press ' + button);
+                socket.emit('click', { button });
+                haptic(hapticKind);
+            };
+            const release = (e) => {
+                if (e && e.stopPropagation) e.stopPropagation();
+                el.classList.remove('pressed');
+            };
+            el.addEventListener('touchstart', press, { passive: false });
+            el.addEventListener('touchend', release);
+            el.addEventListener('touchcancel', release);
+            el.addEventListener('mousedown', press);
+            window.addEventListener('mouseup', release);
+        }
+        bindClickZone(document.getElementById('gz-left'), 'left', 'tap');
+        bindClickZone(document.getElementById('gz-right'), 'right', 'right');
+
+        /* ---------- 快捷键：ESC / 电脑音量 ----------
+           统一走 tap_key（服务端 press → 15ms → release，不会卡键）。
+           音量按一下调一格、按住连续调；ESC 只发一次（菜单/游戏中连发 ESC 会出事）。 */
+        const QUICK_KEYS = {
+            esc: 'esc',
+            volume_down: 'volumedown',
+            volume_up: 'volumeup'
+        };
+        const QUICK_REPEAT_MS = { esc: 0, volume_down: 130, volume_up: 130 };
+
+        document.querySelectorAll('.quick-key[data-shortcut]').forEach(btn => {
+            const name = btn.dataset.shortcut;
+            const key = QUICK_KEYS[name];
+            if (!key) return;
+            let repeat = null;
+
+            const fire = () => socket.emit('tap_key', { key });
+
+            const press = (e) => {
+                if (e) { e.stopPropagation(); if (e.cancelable) e.preventDefault(); }
+                if (repeat) return;                 // 已经按着了，别叠加速度
+                btn.classList.add('pressed');
+                v('tap');
+                fire();
+                const gap = QUICK_REPEAT_MS[name] || 0;
+                if (gap) repeat = setInterval(fire, gap);
+            };
+            const release = (e) => {
+                if (e && e.stopPropagation) e.stopPropagation();
+                btn.classList.remove('pressed');
+                if (repeat) { clearInterval(repeat); repeat = null; }
+            };
+
+            btn.addEventListener('pointerdown', press);
+            btn.addEventListener('pointerup', release);
+            btn.addEventListener('pointercancel', release);
+            btn.addEventListener('pointerleave', release);
+        });
+
+        /* ---------- 媒体键：单击开网站，长按编辑网址 ----------
+           网址存在手机上（localStorage），电脑端只负责用 Chrome 打开。
+           默认 bilibili；改了以后换网络/换电脑都还是这个地址。 */
+        const MEDIA_URL_KEY = 'movo_media_url';
+        const MEDIA_URL_DEFAULT = 'https://www.bilibili.com';
+        const mediaSheet = document.getElementById('media-sheet');
+        const mediaInput = document.getElementById('media-input');
+        const qkToast = document.getElementById('qk-toast');
+        let qkToastTimer = null;
+
+        function mediaUrl() {
+            return localStorage.getItem(MEDIA_URL_KEY) || MEDIA_URL_DEFAULT;
+        }
+
+        function toast(msg) {
+            if (!qkToast || !msg) return;
+            qkToast.textContent = msg;
+            qkToast.classList.add('show');
+            clearTimeout(qkToastTimer);
+            qkToastTimer = setTimeout(() => qkToast.classList.remove('show'), 1400);
+        }
+
+        function openMediaUrl() {
+            const url = mediaUrl();
+            if (!socket.connected) {
+                link.wake();
+                toast(T('conn.waking'));
+                return;
+            }
+            socket.emit('sys_action', { action: 'open_url', url: url }, (res) => {
+                if (res && res.ok) toast(T('pad.toast.opened'));
+                else toast((res && res.msg) || T('pad.toast.openfail'));
+            });
+        }
+
+        function openMediaEditor() {
+            if (!mediaSheet) return;
+            mediaInput.value = mediaUrl();
+            mediaSheet.classList.add('show');
+            setTimeout(() => { try { mediaInput.focus(); mediaInput.select(); } catch (e) { } }, 60);
+        }
+
+        function closeMediaEditor() {
+            if (!mediaSheet) return;
+            mediaSheet.classList.remove('show');
+            mediaInput.blur();
+        }
+
+        function saveMediaUrl() {
+            let v = (mediaInput.value || '').trim();
+            if (!v) v = MEDIA_URL_DEFAULT;
+            if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+            if (!/^https?:\/\/[^\s/]+/i.test(v)) { toast(T('pad.toast.badurl')); return; }
+            localStorage.setItem(MEDIA_URL_KEY, v);
+            closeMediaEditor();
+            toast('已保存');
+        }
+
+        function resetMediaUrl() {
+            localStorage.removeItem(MEDIA_URL_KEY);
+            mediaInput.value = MEDIA_URL_DEFAULT;
+            toast(T('pad.toast.resetdone'));
+        }
+
+        // 点弹层外面关闭；点卡片本身不关
+        if (mediaSheet) {
+            mediaSheet.addEventListener('pointerdown', (e) => {
+                e.stopPropagation();
+                if (e.target === mediaSheet) closeMediaEditor();
+            });
+            mediaInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); saveMediaUrl(); }
+                e.stopPropagation();   // 别把回车传给下面的打字逻辑
+            });
+        }
+
+        (function bindMediaKey() {
+            const btn = document.getElementById('qk-media');
+            if (!btn) return;
+            const HOLD_MS = 550;
+            let holdTimer = null;
+            let longPressed = false;
+
+            const down = (e) => {
+                if (e) { e.stopPropagation(); if (e.cancelable) e.preventDefault(); }
+                btn.classList.add('pressed');
+                v('tap');
+                longPressed = false;
+                clearTimeout(holdTimer);
+                holdTimer = setTimeout(() => {
+                    longPressed = true;
+                    btn.classList.remove('pressed');
+                    v('long');
+                    openMediaEditor();
+                }, HOLD_MS);
+            };
+            const up = (e) => {
+                if (e && e.stopPropagation) e.stopPropagation();
+                clearTimeout(holdTimer);
+                btn.classList.remove('pressed');
+                if (!longPressed) openMediaUrl();
+                longPressed = false;
+            };
+            const cancel = () => {
+                clearTimeout(holdTimer);
+                btn.classList.remove('pressed');
+                longPressed = false;
+            };
+
+            btn.addEventListener('pointerdown', down);
+            btn.addEventListener('pointerup', up);
+            btn.addEventListener('pointercancel', cancel);
+            btn.addEventListener('pointerleave', cancel);
+
+            // ?media=edit：电脑上调试编辑弹层用，手机端不会带这个参数
+            if (new URLSearchParams(location.search).get('media') === 'edit') {
+                setTimeout(openMediaEditor, 300);
+            }
+        })();
+
+        /* ---------- 页面被切走/重载时，主动松开还按着的键 ---------- */
+        function releaseAllHeld() {
+            try { socket.emit('drag_end'); } catch (e) { }
+            try { socket.emit('mid_up'); } catch (e) { }
+            stopScroll();
+            // 顺带把触摸状态清零：这一页可能被浏览器缓存，回来时不带旧手势
+            if (window.touchpad) window.touchpad.reset(false);
+        }
+        window.addEventListener('pagehide', releaseAllHeld);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') releaseAllHeld();
+        });
+
+        /* ---------- 常驻文字输入条 ----------
+           输入框里的字停一会儿就整段 type_text 发到电脑，然后清空。
+           停多久由设置页的「输入停顿」决定（pref: type_delay，单位秒，默认 0.6）。
+           没有发送按钮 —— 停一下就发；回车是立刻发；退格发给电脑。 */
+        const qiBar = document.getElementById('qi-bar');
+        const qiText = document.getElementById('qi-text');
+        const qiBs = document.getElementById('qi-bs');
+        const qiEnter = document.getElementById('qi-enter');
+
+        let qiTimer = null;
+        let qiComposing = false;    // 拼音候选框还没上屏，这时发出去是半成品
+        let qiGyroPaused = false;
+
+        // 每次排期都现读，改完设置返回页面立刻生效（不用重载）
+        function qiDelayMs() {
+            const s = parseFloat(nativeGetPref('type_delay') || localStorage.getItem('type_delay'));
+            const sec = isNaN(s) || s <= 0 ? 0.6 : s;
+            return Math.min(5000, Math.max(200, Math.round(sec * 1000)));
+        }
+
+        // 底部中间键 / 原来的麦克风键：唤起 / 收起键盘（直接点输入框也能唤起）
+        function qiKeyboard() {
+            if (document.activeElement === qiText) qiText.blur();
+            else { qiText.focus(); }
+        }
+        window.qiKeyboard = qiKeyboard;
+
+        function qiPauseGyro() {
+            if (mode === 'gyro' && isGyroActive && !qiGyroPaused) {
+                qiGyroPaused = true;
+                stopGyro();
+            }
+        }
+        function qiResumeGyro() {
+            if (!qiGyroPaused) return;
+            qiGyroPaused = false;
+            if (mode === 'gyro') startGyro();
+        }
+
+        function qiFlash() {
+            qiBar.classList.add('sent');
+            setTimeout(() => qiBar.classList.remove('sent'), 260);
+        }
+
+        function qiFlush() {
+            if (qiTimer) { clearTimeout(qiTimer); qiTimer = null; }
+            if (qiComposing) return;
+            const t = qiText.value;
+            if (!t) return;
+            socket.emit('type_text', { text: t });
+            qiText.value = '';
+            qiFlash();
+        }
+
+        function qiSchedule() {
+            if (qiTimer) clearTimeout(qiTimer);
+            qiTimer = setTimeout(qiFlush, qiDelayMs());
+        }
+
+        // 退格：框里还有没发的字就先删自己的，框空了就删电脑上的
+        function qiBackspace() {
+            if (!qiComposing && qiText.value.length) {
+                qiText.value = qiText.value.slice(0, -1);
+                return;
+            }
+            socket.emit('tap_key', { key: 'backspace' });   // 按下即松开，不会卡键
+        }
+
+        qiText.addEventListener('input', () => {
+            if (qiComposing) return;
+            qiSchedule();
+        });
+        qiText.addEventListener('compositionstart', () => { qiComposing = true; });
+        qiText.addEventListener('compositionend', () => {
+            qiComposing = false;
+            qiSchedule();
+        });
+
+        qiText.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); qiEnterKey(); }
+        });
+
+        // 打字时陀螺仪还在发 move，光标会乱飞 → 聚焦就停，失焦再恢复
+        qiText.addEventListener('focus', qiPauseGyro);
+        qiText.addEventListener('blur', () => {
+            setTimeout(() => { qiFlush(); qiResumeGyro(); }, 0);
+        });
+
+        // 退格键：轻点删一个字；按住 1 秒 = 清空输入框里的全部文字。
+        // 如果框里本来就是空的，长按退回「按住连删电脑上的字」，不白按。
+        const QI_BS_HOLD_MS = 1000;   // 长按多久算「清空」
+        let qiBsTimer = null;       // 连删电脑文字的节拍
+        let qiBsHold = null;        // 长按计时
+        let qiBsLong = false;       // 本次按压是否已触发长按
+        let qiBsDone = false;       // 本次按压是否已处理过（防止 pointerleave + pointerup 双触发）
+
+        function qiBsReset() {
+            if (qiBsHold) { clearTimeout(qiBsHold); qiBsHold = null; }
+            if (qiBsTimer) { clearInterval(qiBsTimer); qiBsTimer = null; }
+        }
+
+        // 清空输入框；返回 false 表示框里没字可清
+        function qiBsClear() {
+            if (qiComposing) return false;      // 拼音候选还没上屏，别乱清
+            if (!qiText.value.length) return false;
+            if (qiTimer) { clearTimeout(qiTimer); qiTimer = null; }
+            qiText.value = '';
+            qiBar.classList.add('cleared');
+            setTimeout(() => qiBar.classList.remove('cleared'), 320);
+            haptic('long');
+            return true;
+        }
+
+        qiBs.addEventListener('pointerdown', (e) => {
+            e.preventDefault();     // 防止输入框失焦、键盘收起
+            v();
+            qiBsReset();
+            qiBsLong = false;
+            qiBsDone = false;
+            qiBs.classList.add('down');
+            qiBsHold = setTimeout(() => {
+                qiBsHold = null;
+                qiBsLong = true;
+                qiBsDone = true;
+                // 有字就整段清掉；没字就退化成原来的「按住连删电脑上的字」
+                if (!qiBsClear()) {
+                    qiBackspace();
+                    qiBsTimer = setInterval(qiBackspace, 110);
+                }
+            }, QI_BS_HOLD_MS);
+        });
+
+        const qiBsStop = () => {
+            qiBs.classList.remove('down');
+            const wasLong = qiBsLong;
+            qiBsReset();
+            if (!wasLong && !qiBsDone) { qiBsDone = true; qiBackspace(); }
+            qiBsLong = false;
+        };
+        qiBs.addEventListener('pointerup', qiBsStop);
+        qiBs.addEventListener('pointercancel', qiBsStop);
+        qiBs.addEventListener('pointerleave', qiBsStop);
+
+        // 回车键：框里还有字就先把它发出去，再给电脑敲一个回车
+        function qiEnterKey() {
+            const hadText = !!qiText.value && !qiComposing;
+            if (hadText) qiFlush();
+            setTimeout(() => {
+                socket.emit('tap_key', { key: 'enter' });
+            }, hadText ? 70 : 0);
+        }
+
+        qiEnter.addEventListener('pointerdown', (e) => {
+            e.preventDefault();   // 保住焦点，键盘不会收起来
+            v();
+            qiEnterKey();
+        });
+
+        // 点触控板时收起键盘（不然键盘一直挡着）
+        document.getElementById('pad').addEventListener('touchstart', () => {
+            if (document.activeElement === qiText) qiText.blur();
+        }, { passive: true });
+
+        /* ---------- 语音输入：按住底部圆钮说话（识别跑在电脑上） ----------
+           实现在 static/js/voice.js（与 Code 页共用同一套），这里只接页面自己的动作：
+           说话时暂停陀螺仪、轻点唤起键盘、上屏后闪一下输入框。 */
+        MovoVoice.attach({
+            socket: socket,
+            link: link,
+            t: T,
+            toast: toast,
+            haptic: haptic,
+            onStart: () => qiPauseGyro(),
+            onEnd: () => qiResumeGyro(),
+            onTap: () => qiKeyboard(),
+            onTyped: () => qiFlash()
+        });
+
+        /* ---------- 启动时恢复上次的模式 ---------- */
+        setMode(localStorage.getItem('movo_mode') === 'gyro' ? 'gyro' : 'pad', true);
+
+        /* 布局探针：URL 带 #debug 时把关键元素宽度写进页面，方便无头浏览器排查 */
+        if (location.hash === '#debug') {
+            const dbg = document.createElement('pre');
+            dbg.style.cssText = 'position:fixed;left:0;top:0;z-index:9999;background:#000c;color:#0f0;font-size:10px;margin:0;padding:2px;pointer-events:none';
+            const o = { iw: innerWidth, ih: innerHeight };
+            for (const sel of ['.app', '.stage', '.pad-view', '#pad', '#scroll-edge', '.modebar']) {
+                const el = document.querySelector(sel);
+                const r = el.getBoundingClientRect();
+                o[sel] = Math.round(r.x) + '+' + Math.round(r.width);
+            }
+            dbg.textContent = 'DBG ' + JSON.stringify(o);
+            document.body.appendChild(dbg);
+        }
+        if (window.MovoLang) MovoLang.apply();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title data-i18n="app.title.kb">Movo | 键盘</title>
+    <link rel="icon" type="image/png" href="/static/keys.png">
+    <meta name="theme-color" content="#000000" id="theme-color">
+    <script>
+        // 词表脚本在本行之后才加载，所以取词要延迟到调用时再查
+        function T(k, a, b) {
+            return (window.MovoLang && MovoLang.t) ? MovoLang.t(k, a, b) : k;
+        }
+        // 主题跟触控板页共用同一个记忆键；在首绘之前定下来，避免先闪一下另一个颜色。
+        // ?theme=dark / light 只是为了电脑上调试截图方便，手机端不会带这个参数。
+        // 顺序：调试参数 → App 原生偏好（设置页统一入口）→ localStorage → 跟随系统
+        (function () {
+            var q = new URLSearchParams(location.search).get('theme');
+            var t = (q === 'light' || q === 'dark') ? q : null;
+            if (!t) {
+                try {
+                    if (window.MovoNative && MovoNative.getPref) t = MovoNative.getPref('ui_theme');
+                } catch (e) { }
+            }
+            if (t !== 'light' && t !== 'dark') t = localStorage.getItem('movo_theme');
+            if (t === 'light' || t === 'dark') {
+                try { localStorage.setItem('movo_theme', t); } catch (e) { }
+            } else {
+                t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+            }
+            document.documentElement.setAttribute('data-theme', t);
+            var m = document.getElementById('theme-color');
+            if (m) m.setAttribute('content', t === 'light' ? '#f2f3f6' : '#000000');
+        })();
+    </script>
+    <script src="/static/js/i18n.js"></script>
+    <style>
+
+        /* ============================================================
+           主题变量：默认夜间，html[data-theme="light"] 覆盖成日间
+           主题键和触控板页共用（localStorage.movo_theme），
+           在触控板页 ⋮ 菜单里切换，这一页跟着变。
+           新增颜色一律走变量，别在下面写死色值。
+           ============================================================ */
+        :root {
+            --kb-bg: #171b22;
+            --kb-key: #1a1a1a;
+            --kb-key-alt: #222;
+            --kb-key-fn: #0d0d0d;
+            --kb-key-arrow: #4f4f4f;
+            --kb-stroke: #333;
+            --kb-ink: #eee;
+            --kb-ink-dim: #888;
+            --kb-ink-bright: #fff;
+            --kb-esc: #ff3b30;
+            --kb-accent: #f1a544;
+            --kb-accent-deep: #c8871f;
+            /* 退格键：整块淡红底 + 淡红描边 + 白字 */
+            --kb-del: #d95a52;
+            --kb-del-line: #e8776f;
+            --kb-footer: #1b2028;
+            --kb-nav: #333;
+            --kb-nav-ink: #fff;
+            --kb-lock: #ff9500;
+            --kb-lock-ink: #000;
+            --kb-press-shadow: 0 8px 18px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .08);
+            --kb-conn-bg: #d94a4a;
+            --kb-conn-sleep: #23252b;
+            --kb-conn-sleep-ink: #9aa0aa;
+            --kb-conn-sleep-stroke: #33363e;
+            --kb-toast-bg: rgba(38, 40, 45, .96);
+            --kb-toast-ink: #f2f3f5;
+        }
+
+        html[data-theme="light"] {
+            --kb-bg: #f1f4f8;
+            --kb-key: #ffffff;
+            --kb-key-alt: #e9ecf1;
+            --kb-key-fn: #dfe3ea;
+            --kb-key-arrow: #ced5e0;
+            --kb-stroke: #d8dce3;
+            --kb-ink: #1b1d21;
+            --kb-ink-dim: #6b7280;
+            --kb-ink-bright: #0d0f12;
+            --kb-esc: #e0362c;
+            --kb-accent: #257ee9;
+            --kb-accent-deep: #1b66c4;
+            --kb-del: #e0605a;
+            --kb-del-line: #ee837d;
+            --kb-footer: #e7ecf4;
+            --kb-nav: #dfe3ea;
+            --kb-nav-ink: #1b1d21;
+            --kb-lock: #f08c00;
+            --kb-lock-ink: #1a1200;
+            --kb-press-shadow: 0 8px 18px rgba(20, 30, 50, .26), 0 0 0 1px rgba(10, 132, 255, .18);
+            --kb-conn-bg: #d94a4a;
+            --kb-conn-sleep: #e4e7ec;
+            --kb-conn-sleep-ink: #6b7280;
+            --kb-conn-sleep-stroke: #d2d7df;
+            --kb-toast-bg: rgba(30, 32, 36, .93);
+            --kb-toast-ink: #fff;
+        }
+
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: none;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--kb-bg);
+            color: var(--kb-ink);
+            font-family: -apple-system, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            height: calc(var(--vh, 1vh) * 100);
+            /* 顶栏两个按钮删掉后，靠这点内边距防止键盘贴到屏幕上沿 */
+            padding: 8px 5px 5px;
+        }
+
+        /* App 显示系统栏时（html[data-sysbars="on"]，原生注入）：键盘页没有多余留白，
+           直接把系统栏 inset 加进 body 内边距，内容不再延伸到状态栏/手势条下面 */
+        html[data-sysbars="on"] body {
+            padding: calc(8px + var(--satop, env(safe-area-inset-top, 0px))) calc(5px + var(--saright, env(safe-area-inset-right, 0px)))
+                     calc(5px + var(--sabottom, env(safe-area-inset-bottom, 0px))) calc(5px + var(--saleft, env(safe-area-inset-left, 0px)));
+        }
+
+        .container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+            padding: 2px;
+        }
+
+        /* 基础按钮 */
+        button {
+            background: var(--kb-key);
+            border: 1px solid var(--kb-stroke);
+            color: var(--kb-ink);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: bold;
+            height: 100%;
+            /* 让按钮随行高自适应 */
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            transition: transform .12s ease-out, background .1s, color .1s, border-color .1s,
+                box-shadow .12s;
+        }
+
+        /* ---------- 按下放大（档位三：放大 14% + 上浮 3px） ----------
+           纯视觉反馈，不参与发送逻辑；按住不放就一直保持，松手回落。
+           z-index 让浮起的键盖住邻键，视觉效果是"从键盘上凸起"。 */
+        button.pressed {
+            position: relative;
+            z-index: 5;
+            transform: scale(1.14) translateY(-3px);
+            background: var(--kb-accent) !important;
+            color: #fff !important;
+            box-shadow: var(--kb-press-shadow);
+            /* 按下瞬间要跟手，回落稍慢一点更自然 */
+            transition-duration: .06s;
+        }
+
+        .keyboard-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            width: 100%;
+            flex: 1;
+            /* 占据剩余所有垂直空间 */
+        }
+
+        .row {
+            display: flex;
+            gap: 4px;
+            width: 100%;
+            flex: 1;
+            /* 每一行平分垂直空间 */
+        }
+
+        /* 交互反馈：按下即蓝底白字，日夜一致 */
+        button:active {
+            background: var(--kb-accent) !important;
+            color: #fff !important;
+        }
+
+        button.locked {
+            background: var(--kb-lock) !important;
+            color: var(--kb-lock-ink);
+            border-color: var(--kb-lock);
+        }
+
+        /* 键宽比例 */
+        .k-f {
+            color: var(--kb-ink-dim);
+            background: var(--kb-key-fn);
+        }
+
+        .esc {
+            flex: 0.8;
+            color: var(--kb-esc);
+        }
+
+        .k-wide {
+            flex: 1.5;
+            background: var(--kb-key-alt);
+        }
+
+        /* Backspace：整块淡红底 + 淡红描边 + 白字，与触控板输入条那枚退格键同款 */
+        .k-del {
+            flex: 1.5;
+            background: var(--kb-del);
+            border-color: var(--kb-del-line);
+            color: #fff;
+        }
+
+        .k-arrow {
+            flex: 0.8;
+            background: var(--kb-key-arrow);
+        }
+
+        .k-caps {
+            flex: 1.6;
+            background: var(--kb-key-alt);
+            font-size: 9px;
+        }
+
+        .k-enter {
+            flex: 2;
+            background: var(--kb-accent-deep);
+            color: #fff;
+        }
+
+        .k-shift {
+            flex: 2;
+        }
+
+        .k-shift-r {
+            flex: 0.85;
+        }
+
+        .k-space {
+            flex: 7;
+            background: var(--kb-key-alt);
+        }
+
+        /* 左上角返回 + 一整排功能键：原来这一行空着，现在拿来做音量/亮度/终端/关机 */
+        .topbar {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex: none;
+            /* 第一行按键按下会向上浮，这里留出余量免得压住返回按钮 */
+            padding: 0 0 6px;
+        }
+
+        /* 返回键：和 coding / 设置页同款「‹ 返回」胶囊 */
+        .nav-back {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            height: 34px;
+            min-height: 34px;
+            padding: 0 13px 0 9px;
+            border: 1px solid var(--kb-stroke);
+            border-radius: 10px;
+            background: var(--kb-nav);
+            color: var(--kb-nav-ink);
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .nav-back svg {
+            width: 15px;
+            height: 15px;
+            flex: none;
+        }
+
+        /* ---------- 功能键条 ---------- */
+        .fkeys {
+            display: flex;
+            gap: 5px;
+            flex: 1;
+            min-width: 0;
+            /* 与返回胶囊同高，整行齐平 */
+            height: 34px;
+        }
+
+        .fkey {
+            position: relative;
+            overflow: hidden;
+            flex: 1 1 0;
+            min-width: 0;
+            height: 100%;
+            min-height: 32px;
+            padding: 0 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            border: 1px solid var(--kb-stroke);
+            border-radius: 9px;
+            background: var(--kb-key-fn);
+            color: var(--kb-ink-dim);
+            font-size: 10.5px;
+            font-weight: 600;
+            letter-spacing: .2px;
+            white-space: nowrap;
+        }
+
+        .fkey svg,
+        .fkey span {
+            position: relative;
+            z-index: 1;
+        }
+
+        .fkey svg {
+            width: 16px;
+            height: 16px;
+            flex: none;
+            stroke-width: 1.7;
+        }
+
+        /* 顶栏这一条要克制：只轻微放大，不像键盘区那样浮起来 */
+        .fkey.pressed {
+            transform: scale(1.06);
+            background: var(--kb-accent) !important;
+            border-color: var(--kb-accent);
+            color: #fff !important;
+        }
+
+        /* 关机：长按进度，红色从左往右填满才触发 */
+        .fkey .fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 0;
+            background: var(--kb-esc);
+            opacity: .92;
+        }
+
+        .fkey.holding {
+            color: #fff !important;
+            border-color: var(--kb-esc);
+        }
+
+        /* 结果提示（亮度百分比 / 已打开终端 …） */
+        #kb-toast {
+            position: fixed;
+            left: 50%;
+            top: 48px;
+            transform: translate(-50%, -4px);
+            z-index: 1000;
+            padding: 8px 16px;
+            border-radius: 999px;
+            background: var(--kb-toast-bg);
+            color: var(--kb-toast-ink);
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            box-shadow: 0 8px 22px rgba(0, 0, 0, .35);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .16s, transform .16s;
+        }
+
+        #kb-toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+
+        /* 强制横屏逻辑 (针对手机) */
+        @media screen and (orientation: portrait) and (max-width: 1000px) {
+            body {
+                transform-origin: center center;
+                width: 100vh !important;
+                height: 100vw !important;
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(90deg);
+                padding: 10px;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .container {
+                max-width: none;
+            }
+        }
+
+        /* 连接状态提示：休眠灰 / 出错红 */
+        #kb-conn {
+            position: fixed;
+            left: 50%;
+            bottom: 14px;
+            transform: translateX(-50%);
+            z-index: 999;
+            padding: 7px 15px;
+            border-radius: 999px;
+            background: var(--kb-conn-bg);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+            transition: opacity .18s, transform .18s;
+        }
+
+        #kb-conn.hide {
+            opacity: 0;
+            transform: translate(-50%, 8px);
+            pointer-events: none;
+        }
+
+        #kb-conn.kb-sleep {
+            background: var(--kb-conn-sleep);
+            color: var(--kb-conn-sleep-ink);
+            border: 1px solid var(--kb-conn-sleep-stroke);
+        }
+
+        </style>
+</head>
+
+<body>
+
+    <div id="kb-conn" class="hide" data-i18n="conn.offline">未连接 · 点此刷新</div>
+    <div id="kb-toast"></div>
+
+    <div class="container">
+        <!-- 顶栏：返回 + 音量 / 静音 / 亮度 / 终端 / 关机（长按 1 秒才关机） -->
+        <div class="topbar">
+            <button class="nav-back" onclick="v(); goBack()" aria-label="返回主页" data-i18n-aria="common.backhome" title="返回主页" data-i18n-title="common.backhome">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.4"
+                        stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span data-i18n="common.back">返回</span>
+            </button>
+
+            <div class="fkeys" role="group" aria-label="电脑功能键" data-i18n-aria="kb.fkeys">
+                <button class="fkey" data-sys="vol_down" title="音量减" data-i18n-title="kb.vol.down.aria" aria-label="音量减" data-i18n-aria="kb.vol.down.aria">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                        <path d="M16 12h6" />
+                    </svg>
+                    <span data-i18n="kb.vol.down">音量−</span>
+                </button>
+                <button class="fkey" data-sys="vol_up" title="音量加" data-i18n-title="kb.vol.up.aria" aria-label="音量加" data-i18n-aria="kb.vol.up.aria">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                        <path d="M19 9v6M16 12h6" />
+                    </svg>
+                    <span data-i18n="kb.vol.up">音量+</span>
+                </button>
+                <button class="fkey" data-sys="mute" title="静音" data-i18n-title="kb.mute" aria-label="静音" data-i18n-aria="kb.mute">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                        <path d="M16.6 9.6l4.4 4.4M21 9.6l-4.4 4.4" />
+                    </svg>
+                    <span data-i18n="kb.mute">静音</span>
+                </button>
+                <button class="fkey" data-sys="terminal" title="打开终端" data-i18n-title="kb.terminal.aria" aria-label="打开终端" data-i18n-aria="kb.terminal.aria">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <rect x="2.6" y="4" width="18.8" height="16" rx="3" />
+                        <path d="M6.6 9.5 9.6 12l-3 2.5M12.6 15h4.8" />
+                    </svg>
+                    <span data-i18n="kb.terminal">终端</span>
+                </button>
+                <button class="fkey" data-sys="shutdown" title="长按 1 秒关机" data-i18n-title="kb.shutdown.hold" aria-label="长按关机" data-i18n-aria="kb.shutdown.aria">
+                    <i class="fill"></i>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M12 3.4v7.4" />
+                        <path d="M7.3 6.5a7.6 7.6 0 1 0 9.4 0" />
+                    </svg>
+                    <span data-i18n="kb.shutdown">关机</span>
+                </button>
+            </div>
+        </div>
+        <div class="keyboard-grid">
+            <div class="row">
+                <button class="k-f esc" ontouchstart="v(); hP('esc')" ontouchend="hR()">ESC</button>
+                <button class="k-f" ontouchstart="v(); hP('f1')" ontouchend="hR()">F1</button>
+                <button class="k-f" ontouchstart="v(); hP('f2')" ontouchend="hR()">F2</button>
+                <button class="k-f" ontouchstart="v(); hP('f3')" ontouchend="hR()">F3</button>
+                <button class="k-f" ontouchstart="v(); hP('f4')" ontouchend="hR()">F4</button>
+                <button class="k-f" ontouchstart="v(); hP('f5')" ontouchend="hR()">F5</button>
+                <button class="k-f" ontouchstart="v(); hP('f6')" ontouchend="hR()">F6</button>
+                <button class="k-f" ontouchstart="v(); hP('f7')" ontouchend="hR()">F7</button>
+                <button class="k-f" ontouchstart="v(); hP('f8')" ontouchend="hR()">F8</button>
+                <button class="k-f" ontouchstart="v(); hP('f9')" ontouchend="hR()">F9</button>
+                <button class="k-f" ontouchstart="v(); hP('f10')" ontouchend="hR()">F10</button>
+                <button class="k-f" ontouchstart="v(); hP('f11')" ontouchend="hR()">F11</button>
+                <button class="k-f" ontouchstart="v(); hP('f12')" ontouchend="hR()">F12</button>
+                <button class="k-f" ontouchstart="v(); hP('prtsc')" ontouchend="hR()">PRTSC</button>
+                <button class="k-f" ontouchstart="v(); hP('delete')" ontouchend="hR()">DEL</button>
+            </div>
+
+            <div class="row">
+                <button class="k-esc" ontouchstart="v(); hP('`')" ontouchend="hR()">`</button>
+                <button class="k-sym" data-norm="1" data-shft="!" ontouchstart="v(); hPS('1','!')"
+                    ontouchend="hR()">1</button>
+                <button class="k-sym" data-norm="2" data-shft="@" ontouchstart="v(); hPS('2','@')"
+                    ontouchend="hR()">2</button>
+                <button class="k-sym" data-norm="3" data-shft="#" ontouchstart="v(); hPS('3','#')"
+                    ontouchend="hR()">3</button>
+                <button class="k-sym" data-norm="4" data-shft="$" ontouchstart="v(); hPS('4','$')"
+                    ontouchend="hR()">4</button>
+                <button class="k-sym" data-norm="5" data-shft="%" ontouchstart="v(); hPS('5','%')"
+                    ontouchend="hR()">5</button>
+                <button class="k-sym" data-norm="6" data-shft="^" ontouchstart="v(); hPS('6','^')"
+                    ontouchend="hR()">6</button>
+                <button class="k-sym" data-norm="7" data-shft="&" ontouchstart="v(); hPS('7','&')"
+                    ontouchend="hR()">7</button>
+                <button class="k-sym" data-norm="8" data-shft="*" ontouchstart="v(); hPS('8','*')"
+                    ontouchend="hR()">8</button>
+                <button class="k-sym" data-norm="9" data-shft="(" ontouchstart="v(); hPS('9','(')"
+                    ontouchend="hR()">9</button>
+                <button class="k-sym" data-norm="0" data-shft=")" ontouchstart="v(); hPS('0',')')"
+                    ontouchend="hR()">0</button>
+                <button class="k-sym" data-norm="-" data-shft="_" ontouchstart="v(); hPS('-','_')"
+                    ontouchend="hR()">-</button>
+                <button class="k-sym" data-norm="=" data-shft="+" ontouchstart="v(); hPS('=','+')"
+                    ontouchend="hR()">=</button>
+                <button class="k-del" ontouchstart="v(); hP('backspace')" ontouchend="hR()">BackSpace</button>
+            </div>
+
+            <div class="row">
+                <button class="k-wide" ontouchstart="v(); hP('tab')" ontouchend="hR()">TAB</button>
+                <button ontouchstart="v(); hP('q')" ontouchend="hR()">Q</button>
+                <button ontouchstart="v(); hP('w')" ontouchend="hR()">W</button>
+                <button ontouchstart="v(); hP('e')" ontouchend="hR()">E</button>
+                <button ontouchstart="v(); hP('r')" ontouchend="hR()">R</button>
+                <button ontouchstart="v(); hP('t')" ontouchend="hR()">T</button>
+                <button ontouchstart="v(); hP('y')" ontouchend="hR()">Y</button>
+                <button ontouchstart="v(); hP('u')" ontouchend="hR()">U</button>
+                <button ontouchstart="v(); hP('i')" ontouchend="hR()">I</button>
+                <button ontouchstart="v(); hP('o')" ontouchend="hR()">O</button>
+                <button ontouchstart="v(); hP('p')" ontouchend="hR()">P</button>
+                <button class="k-sym" data-norm="[" data-shft="{" ontouchstart="v(); hPS('[','{')"
+                    ontouchend="hR()">[</button>
+                <button class="k-sym" data-norm="]" data-shft="}" ontouchstart="v(); hPS(']','}')"
+                    ontouchend="hR()">]</button>
+                <button class="k-sym" data-norm="\" data-shft="|" ontouchstart="v(); hPS('\\','|')"
+                    ontouchend="hR()">\</button>
+            </div>
+
+            <div class="row">
+                <button id="caps-key" class="k-caps" onclick="v(); toggleLock('caps')">CAPS</button>
+                <button ontouchstart="v(); hP('a')" ontouchend="hR()">A</button>
+                <button ontouchstart="v(); hP('s')" ontouchend="hR()">S</button>
+                <button ontouchstart="v(); hP('d')" ontouchend="hR()">D</button>
+                <button ontouchstart="v(); hP('f')" ontouchend="hR()">F</button>
+                <button ontouchstart="v(); hP('g')" ontouchend="hR()">G</button>
+                <button ontouchstart="v(); hP('h')" ontouchend="hR()">H</button>
+                <button ontouchstart="v(); hP('j')" ontouchend="hR()">J</button>
+                <button ontouchstart="v(); hP('k')" ontouchend="hR()">K</button>
+                <button ontouchstart="v(); hP('l')" ontouchend="hR()">L</button>
+                <button class="k-sym" data-norm=";" data-shft=":" ontouchstart="v(); hPS(';',':')"
+                    ontouchend="hR()">;</button>
+                <button class="k-sym" data-norm="'" data-shft='"' ontouchstart="v(); hPS('\'','\&quot;')"
+                    ontouchend="hR()">'
+                </button>
+                <button class="k-enter" ontouchstart="v(); hP('enter')" ontouchend="hR()">ENTER</button>
+            </div>
+
+            <div class="row">
+                <button id="shift-key" class="k-shift" ontouchstart="v(); hFuncStart('shift')"
+                    ontouchend="hFuncEnd('shift')">SHIFT</button>
+                <button ontouchstart="v(); hP('z')" ontouchend="hR()">Z</button>
+                <button ontouchstart="v(); hP('x')" ontouchend="hR()">X</button>
+                <button ontouchstart="v(); hP('c')" ontouchend="hR()">C</button>
+                <button ontouchstart="v(); hP('v')" ontouchend="hR()">V</button>
+                <button ontouchstart="v(); hP('b')" ontouchend="hR()">B</button>
+                <button ontouchstart="v(); hP('n')" ontouchend="hR()">N</button>
+                <button ontouchstart="v(); hP('m')" ontouchend="hR()">M</button>
+                <button class="k-sym" data-norm="," data-shft="<" ontouchstart="v(); hPS(',','<')"
+                    ontouchend="hR()">,</button>
+                <button class="k-sym" data-norm="." data-shft=">" ontouchstart="v(); hPS('.', '>')"
+                    ontouchend="hR()">.</button>
+                <button class="k-sym" data-norm="/" data-shft="?" ontouchstart="v(); hPS('/', '?')"
+                    ontouchend="hR()">/</button>
+                <button class="k-arrow" ontouchstart="v(); hP('up')" ontouchend="hR()">↑</button>
+                <button id="shift_r-key" class="k-shift-r" ontouchstart="v(); hFuncStart('shift_r')"
+                    ontouchend="hFuncEnd('shift_r')">SHIFT</button>
+            </div>
+
+            <div class="row">
+                <button id="ctrl-key" ontouchstart="v(); hFuncStart('ctrl')" ontouchend="hFuncEnd('ctrl')">CTRL</button>
+                <button id="win-key" ontouchstart="v(); hFuncStart('win')" ontouchend="hFuncEnd('win')">WIN</button>
+                <button id="alt-key" ontouchstart="v(); hFuncStart('alt')" ontouchend="hFuncEnd('alt')">ALT</button>
+                <button class="k-space" ontouchstart="v(); hP('space')" ontouchend="hR()">SPACE</button>
+                <button id="alt_r-key" ontouchstart="v(); hFuncStart('alt_r')"
+                    ontouchend="hFuncEnd('alt_r')">ALT</button>
+                <button id="ctrl_r-key" ontouchstart="v(); hFuncStart('ctrl_r')"
+                    ontouchend="hFuncEnd('ctrl_r')">CTRL</button>
+
+                <button class="k-arrow" ontouchstart="v(); hP('left')" ontouchend="hR()">←</button>
+                <button class="k-arrow" ontouchstart="v(); hP('down')" ontouchend="hR()">↓</button>
+                <button class="k-arrow" ontouchstart="v(); hP('right')" ontouchend="hR()">→</button>
+
+            </div>
+        </div>
+
+    </div>
+
+    <script src="/static/js/socket.io.min.js"></script>
+    <script>if(!window.io){document.write('<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"><\/script>');}</script>
+    <script src="/static/js/link.js?v=20261028m"></script>
+    <script>
+        /* 连接：闲置 61 秒休眠，碰一下屏幕唤醒（和触摸板同一套逻辑，见 static/js/link.js） */
+        const link = AirLink.create(null, {
+            onState: (s) => kbConnUI(s),
+            onSleep: () => releaseLocks()   // 休眠前必须把锁住的 Ctrl/Shift/Alt 全弹起
+        });
+        const socket = link.socket;
+
+        function kbConnUI(state) {
+            const bar = document.getElementById('kb-conn');
+            if (!bar) return;
+            bar.onclick = null;          // 只有真出错才允许点刷新，休眠时点它别把页面刷掉
+            bar.classList.remove('hide', 'kb-sleep');
+            if (state === 'ok') { bar.classList.add('hide'); return; }
+            if (state === 'sleep') { bar.classList.add('kb-sleep'); bar.textContent = T('conn.sleep'); return; }
+            if (state === 'waking') { bar.textContent = T('conn.waking'); return; }
+            bar.textContent = T('conn.offline');
+            bar.onclick = () => location.reload();
+        }
+        // 按键反馈只留震动，不出声（2026-10-28 用户要求去掉所有按键音）
+        const feedback = () => {
+            if (navigator.vibrate) navigator.vibrate(30);
+        };
+        const v = feedback;
+        let locks = {
+            ctrl: false, ctrl_r: false,
+            win: false,
+            alt: false, alt_r: false,
+            shift: false, shift_r: false,
+            caps: false
+        };
+        let rT, rI, lockTimer;
+        let didLock = false;
+
+        function hPS(norm, shft) { hP(locks.shift || locks.shift_r ? shft : norm); }
+
+        function hP(key) {
+            v();
+            if (event.cancelable) event.preventDefault();
+            sendKey(key);
+            rT = setTimeout(() => { rI = setInterval(() => sendKey(key), 80); }, 500);
+        }
+
+        function hR() { clearTimeout(rT); clearInterval(rI); }
+
+        // --- 特殊功能键核心逻辑 ---
+        function hFuncStart(key) {
+            v();
+            if (event.cancelable) event.preventDefault();
+            didLock = false;
+
+            // 如果当前是锁定状态，点一下准备解锁
+            if (locks[key]) {
+                return;
+            }
+
+            // 正常按下
+            socket.emit('key_action', { key: key, action: 'down' });
+
+            // 开启长按计时
+            lockTimer = setTimeout(() => {
+                locks[key] = true;
+                didLock = true;
+                const btn = document.getElementById(key + '-key');
+                if (btn) btn.classList.add('locked');
+                if (key.includes('shift')) updateSymbols();
+                if (COMMAND_MODIFIERS.indexOf(key) >= 0) armLockIdle();   // 忘了松手 10 秒兜底
+            }, 600);
+        }
+
+        function hFuncEnd(key) {
+            clearTimeout(lockTimer);
+
+            // 场景 A: 如果已经是锁定状态，这次是“轻点一下”来恢复
+            if (locks[key] && !didLock) {
+                locks[key] = false;
+                const btn = document.getElementById(key + '-key');
+                if (btn) btn.classList.remove('locked');
+                socket.emit('key_action', { key: key, action: 'up' });
+                if (key.includes('shift')) updateSymbols();
+                return;
+            }
+
+            // 场景 B: 如果是短按（没触发长按锁定），松手即弹起
+            if (!locks[key]) {
+                socket.emit('key_action', { key: key, action: 'up' });
+            }
+        }
+
+        function toggleLock(key) {
+            v();
+            locks[key] = !locks[key];
+            const btn = document.getElementById(key + '-key');
+            if (btn) btn.classList.toggle('locked', locks[key]);
+            socket.emit('key_action', { key: key, action: locks[key] ? 'down' : 'up' });
+        }
+
+        function updateSymbols() {
+            const isShift = locks.shift || locks.shift_r;
+            document.querySelectorAll('.k-sym').forEach(btn => {
+                btn.innerText = isShift ? btn.dataset.shft : btn.dataset.norm;
+            });
+        }
+
+        /* ---------- 组合键自动释放（2026-10-28 用户反馈：组合键按完不松手） ----------
+           长按 Ctrl/Alt/Win 会把键锁在电脑上（设计上是为了连续组合），但打完一个键
+           如果还悬着，之后普通打字全变成快捷键——非常像"键盘坏了"。
+           规则：
+             · 锁着 Ctrl/Alt/Win 时按了任意键 → 90ms 后把修饰键全部弹起（Ctrl+Shift+S 也一次松干净）
+             · 只锁 Shift 时不动 —— 那是为了连续打大写和符号
+             · 另外给命令键一个 10 秒闲置兜底，忘了松手也不会一直卡着 */
+        var COMMAND_MODIFIERS = ['ctrl', 'ctrl_r', 'alt', 'alt_r', 'win'];
+        var comboReleaseTimer = null;
+        var lockIdleTimer = null;
+
+        function unlockKey(key) {
+            if (!locks[key]) return;
+            locks[key] = false;
+            var btn = document.getElementById(key + '-key');
+            if (btn) btn.classList.remove('locked');
+            socket.emit('key_action', { key: key, action: 'up' });
+        }
+
+        function releaseComboLocks() {
+            clearTimeout(lockIdleTimer);
+            lockIdleTimer = null;
+            COMMAND_MODIFIERS.concat(['shift', 'shift_r']).forEach(unlockKey);
+            updateSymbols();
+        }
+
+        function armLockIdle() {
+            clearTimeout(lockIdleTimer);
+            lockIdleTimer = setTimeout(releaseComboLocks, 10000);
+        }
+
+        function sendKey(key) {
+            // 点按一次：服务端按下即松开，不进入自动重复，不会有键卡住
+            socket.emit('tap_key', { key: key });
+            // 有命令修饰键锁着 → 这次就是组合键，打完把它弹起
+            if (COMMAND_MODIFIERS.some(function (k) { return locks[k]; })) {
+                clearTimeout(comboReleaseTimer);
+                comboReleaseTimer = setTimeout(releaseComboLocks, 90);
+            }
+        }
+
+        /** 把锁住的修饰键（Ctrl/Shift/Alt/Win）全部弹起。休眠、返回、换页都要调，
+         *  否则电脑上会卡住一个 Ctrl，之后点什么都变成组合键。 */
+        function releaseLocks() {
+            clearTimeout(comboReleaseTimer);
+            clearTimeout(lockIdleTimer);
+            for (let key in locks) {
+                if (locks[key]) {
+                    locks[key] = false;
+                    const btn = document.getElementById(key + '-key');
+                    if (btn) btn.classList.remove('locked');
+                    socket.emit('key_action', { key: key, action: 'up' });
+                }
+            }
+            updateSymbols(); // 恢复符号显示（如果 shift 被清除了）
+            hR(); // 停止可能的重复按键
+        }
+
+        function goBack() {
+            releaseLocks();
+
+            // 稍微延时确保 socket 消息发出后再跳转。
+            // 用 replace 而不是 href：不留历史记录，返回键不会被一层层页面困住
+            setTimeout(() => {
+                location.replace('/touchpad');
+            }, 50);
+        }
+
+        /* ---------- 顶栏功能键：音量 / 静音 / 亮度 / 终端 / 关机 ----------
+           音量、亮度按住不放会连调（130ms 一格）；关机必须按住 1 秒，红色进度条填满才发。
+           动作统一走 sys_action，服务端返回执行结果（亮度百分比之类），这里顺手 toast 一下。
+           休眠时按下先排队，连上后补发——否则"碰一下就断在那儿没反应"。 */
+        (function () {
+            var REPEAT_MS = { vol_up: 130, vol_down: 130 };
+            var HOLD_MS = 1100;
+            var queue = [];
+            var toastEl = document.getElementById('kb-toast');
+            var toastTimer = null;
+
+            function toast(msg) {
+                if (!toastEl || !msg) return;
+                toastEl.textContent = msg;
+                toastEl.classList.add('show');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 1100);
+            }
+
+            function send(name) {
+                if (!socket.connected) {
+                    link.wake();
+                    if (queue.length < 4) queue.push(name);
+                    toast(T('conn.waking'));
+                    return;
+                }
+                socket.emit('sys_action', { action: name }, function (res) {
+                    if (!res || !res.ok) {
+                        if (res && res.msg) toast(res.msg);
+                        return;
+                    }
+                    if (name === 'terminal') toast(T('kb.toast.terminal'));
+                    else if (name === 'shutdown') toast(T('kb.toast.shutdown'));
+                });
+            }
+
+            socket.on('connect', function () {
+                var list = queue.splice(0);
+                list.forEach(function (n) { setTimeout(function () { send(n); }, 60); });
+            });
+
+            document.querySelectorAll('.fkey[data-sys]').forEach(function (btn) {
+                var name = btn.dataset.sys;
+                var holdMs = name === 'shutdown' ? HOLD_MS : 0;
+                var repeatMs = REPEAT_MS[name] || 0;
+                var fill = btn.querySelector('.fill');
+                var active = false, fired = false, t0 = 0, repTimer = null, raf = null;
+
+                function stopHold() {
+                    clearInterval(repTimer); repTimer = null;
+                    if (raf) { cancelAnimationFrame(raf); raf = null; }
+                }
+
+                function pressStart() {
+                    if (active) return;
+                    active = true;
+                    fired = false;
+                    btn.classList.add('pressed');
+                    if (navigator.vibrate) navigator.vibrate(12);
+
+                    if (!holdMs) {
+                        send(name);
+                        if (repeatMs) {
+                            repTimer = setInterval(function () { send(name); }, repeatMs);
+                        }
+                        return;
+                    }
+
+                    t0 = Date.now();
+                    btn.classList.add('holding');
+                    (function tick() {
+                        var p = Math.min(1, (Date.now() - t0) / holdMs);
+                        if (fill) fill.style.width = (p * 100) + '%';
+                        if (p >= 1) {
+                            if (!fired) {
+                                fired = true;
+                                send(name);
+                                if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
+                            }
+                            raf = null;
+                            return;
+                        }
+                        raf = requestAnimationFrame(tick);
+                    })();
+                }
+
+                function pressEnd() {
+                    if (!active) return;
+                    active = false;
+                    btn.classList.remove('pressed');
+                    stopHold();
+                    if (!holdMs) return;
+                    btn.classList.remove('holding');
+                    if (fill) fill.style.width = '0%';
+                    // 只是点了一下：告诉他关机要按住，不是坏了
+                    if (!fired) toast(T('kb.toast.holdshutdown'));
+                }
+
+                btn.addEventListener('touchstart', function (e) { e.stopPropagation(); pressStart(); },
+                    { passive: true });
+                btn.addEventListener('touchend', pressEnd);
+                btn.addEventListener('touchcancel', pressEnd);
+                btn.addEventListener('pointerdown', function (e) {
+                    if (e.pointerType !== 'touch') pressStart();
+                });
+                btn.addEventListener('pointerup', function (e) {
+                    if (e.pointerType !== 'touch') pressEnd();
+                });
+                btn.addEventListener('pointerleave', function (e) {
+                    if (e.pointerType !== 'touch') pressEnd();
+                });
+            });
+        })();
+
+        /* 主题跟随触控板页：这里不放开关，只读同一个记忆键。
+           从触控板页切主题后回到本页（或本页被唤醒）时同步一次。 */
+        function syncTheme() {
+            var t = localStorage.getItem('movo_theme');
+            if (t === 'light' || t === 'dark') {
+                if (document.documentElement.getAttribute('data-theme') !== t) {
+                    document.documentElement.setAttribute('data-theme', t);
+                    var m = document.getElementById('theme-color');
+                    if (m) m.setAttribute('content', t === 'light' ? '#f2f3f6' : '#000000');
+                }
+            }
+        }
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') syncTheme();
+        });
+        window.addEventListener('pageshow', syncTheme);
+
+        /* ---------- 按下放大（档位三）：纯视觉，不碰发送逻辑 ----------
+           用事件委托，不动几十个按键的内联 handler。
+           手指在键与键之间滑动时跟随切换；松手 / 滑出 / 被来电打断都会回落。 */
+        (function () {
+            var grid = document.querySelector('.keyboard-grid');
+            if (!grid) return;
+            var cur = null;
+
+            function apply(el) {
+                if (el === cur) return;
+                if (cur) cur.classList.remove('pressed');
+                cur = el || null;
+                if (cur) cur.classList.add('pressed');
+            }
+
+            // 触摸（手机主路径）
+            grid.addEventListener('touchstart', function (e) {
+                apply(e.target.closest('button'));
+            }, { passive: true });
+
+            grid.addEventListener('touchmove', function (e) {
+                var t = e.touches[0];
+                if (!t) return;
+                var el = document.elementFromPoint(t.clientX, t.clientY);
+                apply(el && el.closest('button'));
+            }, { passive: true });
+
+            // 鼠标 / 触控笔（桌面调试用），触摸已在上面处理，这里跳过避免重复
+            grid.addEventListener('pointerdown', function (e) {
+                if (e.pointerType === 'touch') return;
+                apply(e.target.closest('button'));
+            });
+
+            grid.addEventListener('pointermove', function (e) {
+                if (e.pointerType === 'touch' || !cur) return;
+                var el = document.elementFromPoint(e.clientX, e.clientY);
+                apply(el && el.closest('button'));
+            });
+
+            ['touchend', 'touchcancel', 'pointerup', 'pointercancel', 'pointerleave']
+                .forEach(function (ev) { grid.addEventListener(ev, function () { apply(null); }); });
+
+            // 休眠 / 切后台时残留的放大状态也清掉
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState !== 'visible') apply(null);
+            });
+        })();
+
+        // 1. 动态高度补丁 (防止键盘弹出时遮挡或布局跳动)
+        function resetHeight() {
+            let vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty('--vh', `${vh}px`);
+        }
+        window.addEventListener('resize', resetHeight);
+        resetHeight();
+        if (window.MovoLang) MovoLang.apply();
+    </script>
+</body>
+
+</html>

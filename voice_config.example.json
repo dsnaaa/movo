@@ -1,0 +1,16 @@
+{
+  "_说明": "复制为 voice_config.json 后填入凭证。新版控制台只需 api_key；旧版控制台填 app_key + access_key。",
+  "provider": "volc",
+  "volc": {
+    "api_key": "",
+    "app_key": "",
+    "access_key": "",
+    "resource_id": "volc.seedasr.sauc.duration",
+    "url": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
+    "enable_itn": true,
+    "enable_punc": true,
+    "enable_ddc": true,
+    "enable_nonstream": true,
+    "hotwords": []
+  }
+}
