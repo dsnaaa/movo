@@ -879,3 +879,18 @@ git remote `origin` 同理）。
   - 源码模式默认不弹，`MOVO_SETUP_PAGE=1` 可手动打开。
 - **托盘菜单**新增「设置 / API Key」入口；顺手修了 `voice_service._load_cloud_config`
   里漏 `global _load_error` 的老 bug。
+
+## 48. 仓库迁到 Movo + 首次正式发布（2026-10-28）
+
+GitHub 仓库从 `dsnaaa/mouse` 改名为 `dsnaaa/movo`，并按「清空重来」的方式重做远程仓库。
+
+- **远程彻底重置**：本地历史（140MB，含上游 AirMouse 全部提交）不再推远程，只留一个
+  干净的首提交 `Movo v2.0.0`（88 个文件 / 2.8MB）。旧历史保留在本地分支
+  `archive/upstream-history`，需要时可查。
+- **旧 tag 全删**：v1.1.3 / v1.1.4 / v1.3.0 从远程移除，新建带说明的 `v2.0.0`。
+- **README 重写**：原稿还在写已下线的「手柄页 /controller」「download/ 目录」
+  「Movoserver.bat」「_diag.log 常开」，新版对齐现状（Code 遥控器、语音双引擎、
+  双指捏合缩放、双击 exe 的欢迎配置页），并改名 `README.md`。
+- **Release v2.0.0** 两个资产：
+  `MovoServer.exe`（46.6MB，单文件免安装）+ `Movo-v2.0.0.apk`
+  （3.7MB，`com.dsnaaa.movo` versionCode 25），发布说明含 SHA256 校验值和三步上手流程。
